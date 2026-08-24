@@ -1,0 +1,339 @@
+/* ==========================================================================
+   RAW — مطبخ الكافيه ثلاثي الأبعاد (three.js)
+
+   الملف ده بيركّب المشهد من المكوّنات: الخامات، الإضاءة، الغرفة، المحطات،
+   الشخصية، والكاميرا — وبيمسك الحركة والاصطدام والتفاعل.
+
+   التجربة بتبدأ بلقطة واسعة، مفيش محطة بتفتح لوحدها، والشخصية بتبدأ في نص
+   الفراغ المفتوح قدّام الجزيرة.
+   ========================================================================== */
+(function (global) {
+  'use strict';
+  const RAW = global.RAW = global.RAW || {};
+
+  // مسار السكربت ده نفسه — عشان نلاقي نسخة three المحلية جنب المشروع
+  const HERE = (document.currentScript && document.currentScript.src) || location.href;
+  const LOCAL = '../vendor/three.module.min.js';
+  const CDN   = 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js';
+  let THREE = null, loading = null;
+
+  function webglOK() {
+    try {
+      const c = document.createElement('canvas');
+      return !!(window.WebGLRenderingContext &&
+        (c.getContext('webgl2') || c.getContext('webgl')));
+    } catch (e) { return false; }
+  }
+
+  /* النسخة المحلية الأول (بتشتغل على أي سيرفر من غير إنترنت)، والـCDN
+     احتياطي — مهم لو الصفحة اتفتحت من file:// حيث الـmodule المحلي بيتمنع. */
+  function load() {
+    if (loading) return loading;
+    if (!webglOK()) { loading = Promise.resolve(null); return loading; }
+    const url = new URL(LOCAL, HERE).href;
+    loading = import(url)
+      .catch(() => import(CDN))
+      .then(m => (THREE = m))
+      .catch(e => { console.error('RAW: three.js لم يتحمّل —', e); return null; });
+    return loading;
+  }
+
+  /* نقطة بداية الباريستا: نص الفراغ المفتوح، بعيد عن أي محطة */
+  const START = { x: 0.2, z: 2.3 };
+  const REACH = 1.7;            // نطاق التفاعل حوالين نقطة الوقوف
+  const BODY  = 0.34;           // نصف قطر الشخصية للاصطدام
+  const SPEED = 2.6;            // متر/ثانية
+
+  function build(host, o) {
+    o = o || {};
+    const W = host.clientWidth || 960, H = host.clientHeight || 600;
+
+    /* ---------- الراندرر والمشهد ---------- */
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setSize(W, H, false);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // منحنى سينمائي: الستانلس والرخام بيرجعوا بدل ما يتحرقوا أبيض
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.14;
+    renderer.domElement.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none';
+    host.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xE7DFD2);
+    scene.fog = new THREE.Fog(0xE7DFD2, 26, 46);
+
+    const cam = new THREE.PerspectiveCamera(44, W / H, 0.1, 90);
+
+    /* ---------- المكوّنات ---------- */
+    const mats = RAW.materials(THREE);
+    const fx = RAW.fx(THREE);
+    RAW.lighting(THREE, scene, mats);
+    const room = RAW.room(THREE, scene, mats, fx);
+    const st = RAW.stations(THREE, scene, mats, fx);
+    const stations = st.stations, stationRoots = st.roots;
+    const chef = RAW.character(THREE, scene, mats);
+    chef.root.position.set(START.x, 0, START.z);
+
+    const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+    const rig = RAW.cameraRig(THREE, cam, renderer.domElement, onTap);
+
+    /* ---------- الحركة والاصطدام ---------- */
+    const goal = chef.root.position.clone();
+    const keys = Object.create(null);
+    let current = null;                    // المحطة اللي هو واقف عندها
+    let pending = null;                    // محطة اتطلبت بزرار/كليك، تفتح لوحتها لما يوصل
+    const tmp = new THREE.Vector3();
+
+    function onKeyDown(e) {
+      keys[e.code] = true;
+      if (e.code === 'Escape') { if (o.onEscape) o.onEscape(); return; }
+      // الضغطة المستمرة بتكرّر keydown — من غير الحارس ده اللوحة بتفتح وتقفل بسرعة
+      if (!e.repeat && (e.code === 'KeyE' || e.code === 'Enter' || e.code === 'Space')) {
+        if (current && o.onInteract) o.onInteract(pub(current));
+      }
+      if (MOVE_CODES.indexOf(e.code) > -1) e.preventDefault();
+    }
+    function onKeyUp(e) { keys[e.code] = false; }
+    const MOVE_CODES = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
+                        'KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space'];
+    addEventListener('keydown', onKeyDown, { passive: false });
+    addEventListener('keyup', onKeyUp);
+
+    /* الاصطدام: مستطيلات على الأرض، بندفع الشخصية بره أقرب ضلع.
+       مهم إن ده يشتغل بعد الحركة بس — عشان ما يزقّهاش لمحطة في أول frame. */
+    function collide(p) {
+      const obs = room.obstacles;
+      for (let i = 0; i < obs.length; i++) {
+        const b = obs[i];
+        const x0 = b.x0 - BODY, x1 = b.x1 + BODY, z0 = b.z0 - BODY, z1 = b.z1 + BODY;
+        if (p.x > x0 && p.x < x1 && p.z > z0 && p.z < z1) {
+          const dl = p.x - x0, dr = x1 - p.x, db = p.z - z0, df = z1 - p.z;
+          const m = Math.min(dl, dr, db, df);
+          if (m === dl) p.x = x0; else if (m === dr) p.x = x1;
+          else if (m === db) p.z = z0; else p.z = z1;
+        }
+      }
+      p.x = Math.max(-7.4, Math.min(7.4, p.x));
+      p.z = Math.max(-6.0, Math.min(6.8, p.z));
+    }
+
+    function nearestStation() {
+      let best = null, bd = REACH;
+      for (const k in stations) {
+        const s = stations[k];
+        const d = Math.hypot(chef.root.position.x - s.at.x, chef.root.position.z - s.at.z);
+        if (d < bd) { bd = d; best = s; }
+      }
+      return best;
+    }
+
+    const pub = s => s ? { id: s.id, label: s.label } : null;
+
+    /* تشغيل الماكينة: لمبة بتنبض، بخار أقوى لحظة، وصوت */
+    function operate(s) {
+      if (!s) return false;
+      if (s.lamp) fx.flash(s.lamp.material, 2.2, 1.0);
+      if (s.plume) s.plume.userData.boost = 1;
+      if (RAW.sfx) RAW.sfx.machine(s.id);
+      if (o.onOperate) o.onOperate(pub(s));
+      return true;
+    }
+
+    /* دوسة على المشهد: ماكينة الأول، وبعدين الأرض.
+       الأرضية plane كبير ورا كل حاجة، فلو اتفحصت الأول مش هتقدر تدوس ماكينة أبداً. */
+    function onTap(e) {
+      const r = renderer.domElement.getBoundingClientRect();
+      ndc.x = ((e.clientX - r.left) / r.width) * 2 - 1;
+      ndc.y = -((e.clientY - r.top) / r.height) * 2 + 1;
+      ray.setFromCamera(ndc, cam);
+      const hitM = ray.intersectObjects(stationRoots, true);
+      if (hitM.length) {
+        let n = hitM[0].object;
+        while (n && !n.userData.stationId) n = n.parent;
+        if (n) { request(n.userData.stationId); return; }
+      }
+      const hitF = ray.intersectObject(room.floor);
+      if (hitF.length) {
+        goal.set(hitF[0].point.x, 0, hitF[0].point.z);
+        collide(goal);
+        pending = null;
+      }
+    }
+
+    /* طلب محطة: يمشي لها، ولما يوصل تتفتح لوحتها */
+    function request(id) {
+      const s = stations[id];
+      if (!s) return false;
+      if (current === s) { if (o.onArrive) o.onArrive(pub(s)); return true; }
+      goal.set(s.at.x, 0, s.at.z);
+      pending = id;
+      return true;
+    }
+
+    /* ---------- الحلقة ---------- */
+    let last = performance.now(), raf = 0, stepTimer = 0;
+    function tick() {
+      raf = requestAnimationFrame(tick);
+      const now = performance.now();
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+
+      // الأسهم/WASD بيحرّكوه على طول، والدوس على الأرض بيحدّد هدف
+      let ix = 0, iz = 0;
+      if (keys.ArrowLeft  || keys.KeyA) ix -= 1;
+      if (keys.ArrowRight || keys.KeyD) ix += 1;
+      if (keys.ArrowUp    || keys.KeyW) iz -= 1;
+      if (keys.ArrowDown  || keys.KeyS) iz += 1;
+
+      const p = chef.root.position;
+      let moving = false, faceX = 0, faceZ = 0;
+
+      if (ix || iz) {
+        tmp.set(ix, 0, iz).normalize().multiplyScalar(SPEED * dt);
+        p.x += tmp.x; p.z += tmp.z;
+        collide(p);
+        goal.set(p.x, 0, p.z);
+        pending = null;
+        moving = true; faceX = ix; faceZ = iz;
+      } else {
+        const dx = goal.x - p.x, dz = goal.z - p.z;
+        const d = Math.hypot(dx, dz);
+        if (d > 0.06) {
+          const stepLen = Math.min(d, SPEED * dt);
+          p.x += (dx / d) * stepLen; p.z += (dz / d) * stepLen;
+          collide(p);
+          moving = true; faceX = dx; faceZ = dz;
+        }
+      }
+
+      if (moving) {
+        // يلف ناحية الحركة بأقصر طريق — lerp عادي بيلفّه الطريق الطويل عند ±π
+        const want = Math.atan2(faceX, faceZ);
+        let diff = want - chef.root.rotation.y;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        chef.root.rotation.y += diff * Math.min(1, dt * 11);
+        stepTimer -= dt;
+        if (stepTimer <= 0) { stepTimer = 0.34; if (RAW.sfx) RAW.sfx.step(); }
+      }
+      // وهو واقف عند محطة، يلتفت ناحيتها — مش فاضل مبحلق في الأوضة
+      if (!moving && current) {
+        const want = Math.atan2(current.obj.position.x - p.x, current.obj.position.z - p.z);
+        let diff = want - chef.root.rotation.y;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        chef.root.rotation.y += diff * Math.min(1, dt * 6);
+      }
+      chef.update(dt, moving, 1);
+      fx.update(dt);
+
+      // المحطة اللي هو عندها دلوقتي
+      const near = nearestStation();
+      if (near !== current) {
+        current = near;
+        rig.setFocus(near);                       // اللقطة القريبة بس لما يوصل
+        if (o.onStation) o.onStation(pub(near));
+        if (near && pending === near.id) {
+          pending = null;
+          if (o.onArrive) o.onArrive(pub(near));
+        }
+      }
+
+      rig.update(dt, p);
+      renderer.render(scene, cam);
+    }
+    tick();
+
+    /* ---------- المقاسات ---------- */
+    function resize() {
+      const w = host.clientWidth || W, h = host.clientHeight || H;
+      renderer.setSize(w, h, false);
+      cam.aspect = w / h;
+      cam.fov = rig.fit(cam.aspect);          // الشاشة الطولية بتاخد زاوية أوسع
+      cam.updateProjectionMatrix();
+    }
+    resize();
+    const ro = ('ResizeObserver' in window) ? new ResizeObserver(resize) : null;
+    if (ro) ro.observe(host);
+    addEventListener('resize', resize);
+
+    /* ---------- الواجهة البرمجية ---------- */
+    return {
+      stations: Object.keys(stations),
+      station(id) { return pub(stations[id]); },
+      /** يمشي للمحطة، ولما يوصل تتفتح لوحتها */
+      goTo(id) { return request(id); },
+      /** ينقله فوراً من غير مشي (للاختبار والروابط) */
+      place(id) {
+        const s = stations[id];
+        if (!s) return false;
+        chef.root.position.set(s.at.x, 0, s.at.z);
+        goal.copy(chef.root.position);
+        return true;
+      },
+      /** يحطّه في أي نقطة على الأرض فوراً (للاختبار وربط الصفحات) */
+      teleport(x, z) {
+        chef.root.position.set(x, 0, z);
+        collide(chef.root.position);
+        goal.copy(chef.root.position);
+        pending = null;
+        return true;
+      },
+      /** أرقام الأداء: عدد الـdraw calls والمثلثات والمجسمات */
+      stats() {
+        const i = renderer.info;
+        return { calls: i.render.calls, triangles: i.render.triangles,
+                 geometries: i.memory.geometries, textures: i.memory.textures };
+      },
+      /** المحطة اللي هو واقف عندها دلوقتي */
+      at() { return current ? current.id : null; },
+      /** تشغيل ماكينة — الافتراضي اللي هو واقف عندها */
+      use(id) { return operate(id ? stations[id] : current); },
+      /** الهدف اللي ماشي ناحيته، أو null لو وصل */
+      goalAt() {
+        const p = chef.root.position;
+        return Math.hypot(goal.x - p.x, goal.z - p.z) > 0.06
+          ? { x: +goal.x.toFixed(2), z: +goal.z.toFixed(2) } : null;
+      },
+      where() {
+        const p = chef.root.position;
+        return { x: +p.x.toFixed(2), z: +p.z.toFixed(2) };
+      },
+      camera: cam,
+      destroy() {
+        cancelAnimationFrame(raf);
+        removeEventListener('keydown', onKeyDown);
+        removeEventListener('keyup', onKeyUp);
+        removeEventListener('resize', resize);
+        if (ro) ro.disconnect();
+        rig.dispose();
+        scene.traverse(n => {
+          if (n.isMesh) {
+            if (n.geometry) n.geometry.dispose();
+            const m = n.material;
+            if (Array.isArray(m)) m.forEach(x => x && x.dispose && x.dispose());
+            else if (m && m.dispose) m.dispose();
+          }
+        });
+        renderer.dispose();
+        if (renderer.domElement.parentNode) renderer.domElement.remove();
+      }
+    };
+  }
+
+  function mount(host, opts) {
+    return load().then(m => {
+      if (!m || !host) return null;
+      try {
+        return build(host, opts);
+      } catch (e) {
+        console.error('RAW: فشل بناء المشهد —', e);
+        return null;
+      }
+    });
+  }
+
+  RAW.kitchen = { mount, supported: webglOK };
+})(window);

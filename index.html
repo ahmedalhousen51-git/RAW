@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RAW — مطبخ الكافيه ثلاثي الأبعاد</title>
+<meta name="description" content="تجربة تفاعلية ثلاثية الأبعاد لمطبخ كافيه RAW: امشي جوه المكان، اقترب من المحطات، وشغّل الماكينات.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/raw-ui.css">
+</head>
+<body>
+
+<header class="raw-top">
+  <div class="raw-brand"><b>RAW</b><span>كافيه ومحمصة</span></div>
+  <div class="raw-tagline">امشي في المطبخ</div>
+</header>
+
+<div class="raw-wrap" id="wrap">
+  <div id="stage"></div>
+
+  <aside class="raw-stock">
+    <h3>المخزون</h3>
+    <div id="stock"></div>
+    <button type="button" class="raw-sound" id="sound" aria-pressed="true" title="الصوت شغّال">الصوت: شغّال</button>
+  </aside>
+
+  <div class="raw-help">
+    <b>الأسهم</b> أو <b>WASD</b> للمشي<br>
+    <b>دوس على الأرض</b> تروح لنقطة<br>
+    <b>دوس على ماكينة</b> تفتح محطتها
+  </div>
+
+  <div class="raw-rotate">لفّ الموبايل بالعرض عشان تشوف المطبخ كله</div>
+
+  <div class="raw-tag" id="tag"></div>
+
+  <section class="raw-panel" id="panel" aria-live="polite">
+    <header>
+      <h2 id="panelName">المحطة</h2>
+      <span class="raw-step" id="panelStep">الخطوة ١</span>
+      <button type="button" class="raw-x" id="panelClose" aria-label="اقفل اللوحة">✕</button>
+    </header>
+    <h4 id="panelTitle">—</h4>
+    <p id="panelDesc">—</p>
+    <div class="raw-ctl" id="panelCtl" hidden>
+      <div class="row"><span id="panelLabel">القيمة</span><output id="panelValue">0</output></div>
+      <input type="range" id="panelRange" min="0" max="10" step="1" value="5">
+    </div>
+    <button type="button" class="raw-ok" id="panelOk">تأكيد الخطوة</button>
+    <div class="raw-msg" id="panelMsg"></div>
+  </section>
+
+  <div class="raw-load" id="load"><i></i><span>بجهّز مطبخ RAW…</span></div>
+
+  <div class="raw-fallback" id="fallback">
+    <h2>الجهاز ده مش شايل الرسم ثلاثي الأبعاد</h2>
+    <p>محتاج متصفح حديث بيدعم WebGL عشان تفتح مطبخ RAW.</p>
+  </div>
+</div>
+
+<script src="assets/raw-materials.js"></script>
+<script src="assets/raw-fx.js"></script>
+<script src="assets/raw-lighting.js"></script>
+<script src="assets/raw-room.js"></script>
+<script src="assets/raw-stations.js"></script>
+<script src="assets/raw-character.js"></script>
+<script src="assets/raw-camera.js"></script>
+<script src="assets/raw-recipes.js"></script>
+<script src="assets/raw-sfx.js"></script>
+<script src="assets/raw-ui.js"></script>
+<script src="assets/raw-kitchen.js"></script>
+<script>
+(function () {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const wrap = $('wrap');
+  const els = {
+    stock: $('stock'), tag: $('tag'), sound: $('sound'),
+    panel: $('panel'), panelName: $('panelName'), panelStep: $('panelStep'),
+    panelTitle: $('panelTitle'), panelDesc: $('panelDesc'),
+    panelCtl: $('panelCtl'), panelLabel: $('panelLabel'),
+    panelValue: $('panelValue'), panelRange: $('panelRange'),
+    panelOk: $('panelOk'), panelMsg: $('panelMsg'), panelClose: $('panelClose')
+  };
+
+  const done = () => $('load').classList.add('gone');
+  const giveUp = () => { $('stage').style.display = 'none'; $('fallback').style.display = 'block'; done(); };
+
+  if (!RAW.kitchen.supported()) { giveUp(); return; }
+
+  let api = null;
+  const S = id => api && api.station ? api.station(id) : null;
+  const setPaneled = on => wrap.classList.toggle('paneled', on);
+
+  const ui = RAW.ui(els, {
+    // زرار من المخزون = طلب مقصود: يمشي للمحطة وتتفتح لوحتها لما يوصل
+    onPick(stationId) {
+      RAW.sfx.click();
+      if (api) api.goTo(stationId);
+    },
+    onConfirm(st) {
+      RAW.sfx.confirm();
+      if (api) api.use(st.id);
+    },
+    onError() { RAW.sfx.error(); },
+    onDone(st) {
+      if (api) api.use(st.id);
+    },
+    onClose() { setPaneled(false); }
+  });
+
+  // زرار الصوت بيغيّر نصّه كمان
+  els.sound.addEventListener('click', () => {
+    els.sound.textContent = RAW.sfx.on ? 'الصوت: شغّال' : 'الصوت: مقفول';
+  });
+
+  RAW.kitchen.mount($('stage'), {
+    // الاقتراب بيوري اسم المحطة والكاميرا بتقرّب — من غير ما تفتح لوحة
+    onStation(st) {
+      ui.setNear(st, st ? 'دوس على الماكينة أو اضغط E' : '');
+      if (!st && ui.isOpen()) { ui.close(); setPaneled(false); }
+    },
+    // الوصول بعد طلب مقصود (زرار أو كليك على الماكينة) بيفتح لوحة الشغل
+    onArrive(st) {
+      ui.open(st);
+      setPaneled(true);
+    },
+    onInteract(st) {
+      if (ui.isOpen()) { ui.close(); setPaneled(false); }
+      else { ui.open(st); setPaneled(true); }
+    },
+    onOperate(st) {
+      const rec = RAW.recipes[st.id];
+      ui.say(st, (rec && rec.run) || 'شغّالة…');
+    },
+    onEscape() { if (ui.isOpen()) { ui.close(); setPaneled(false); } }
+  }).then(a => {
+    api = a;
+    if (!a) { giveUp(); return; }
+    window.RAWKitchen = a;                 // للتشخيص ولربط صفحات تانية
+    // ?go=espresso يمشي لها · ?at=espresso يبدأ عندها
+    const q = new URLSearchParams(location.search);
+    if (q.get('at')) a.place(q.get('at'));
+    else if (q.get('go')) a.goTo(q.get('go'));
+    done();
+  }).catch(err => {
+    console.error('RAW: mount failed —', err);
+    giveUp();
+  });
+})();
+</script>
+</body>
+</html>
