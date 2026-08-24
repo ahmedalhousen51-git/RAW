@@ -23,6 +23,7 @@
   <aside class="raw-stock">
     <h3>المخزون</h3>
     <div id="stock"></div>
+    <button type="button" class="raw-sound" id="time" title="غيّر وقت اليوم">الوقت: —</button>
     <button type="button" class="raw-sound" id="sound" aria-pressed="true" title="الصوت شغّال">الصوت: شغّال</button>
   </aside>
 
@@ -33,6 +34,10 @@
   </div>
 
   <div class="raw-rotate">لفّ الموبايل بالعرض عشان تشوف المطبخ كله</div>
+
+  <div class="raw-cup" id="cup" hidden>
+    <span id="cupTemp">—</span><i></i><span id="cupFill">—</span><i></i><span id="cupIce">—</span>
+  </div>
 
   <div class="raw-tag" id="tag"></div>
 
@@ -66,6 +71,8 @@
 <script src="assets/raw-room.js"></script>
 <script src="assets/raw-stations.js"></script>
 <script src="assets/raw-character.js"></script>
+<script src="assets/raw-drink.js"></script>
+<script src="assets/raw-atmos.js"></script>
 <script src="assets/raw-camera.js"></script>
 <script src="assets/raw-recipes.js"></script>
 <script src="assets/raw-sfx.js"></script>
@@ -100,47 +107,81 @@
       RAW.sfx.click();
       if (api) api.goTo(stationId);
     },
-    onConfirm(st) {
+    // الخطوة الصح: الماكينة تشتغل، الكوباية تستقبل اللي اتعمل، ونورة تبتسم
+    onConfirm(st, step, value) {
       RAW.sfx.confirm();
-      if (api) api.use(st.id);
+      if (!api) return;
+      api.use(st.id);
+      api.serve(st.id, step, value);
+      api.express('happy', 1.8);
     },
-    onError() { RAW.sfx.error(); },
+    onError() {
+      RAW.sfx.error();
+      if (api) api.express('oops', 1.6);
+    },
     onDone(st) {
-      if (api) api.use(st.id);
+      if (!api) return;
+      api.use(st.id);
+      api.express('happy', 2.4);
     },
-    onClose() { setPaneled(false); }
+    onClose() { setPaneled(false); if (api) api.cupTo(null); }
   });
 
-  // زرار الصوت بيغيّر نصّه كمان
+  // زرار الصوت بيغيّر نصّه وبيشغّل/يقفل همهمة المكان
   els.sound.addEventListener('click', () => {
     els.sound.textContent = RAW.sfx.on ? 'الصوت: شغّال' : 'الصوت: مقفول';
+    RAW.sfx.ambience(RAW.sfx.on);
+  });
+
+  // وقت اليوم: الصبح · الضهر · المغرب · الليل
+  $('time').addEventListener('click', () => {
+    if (!api) return;
+    RAW.sfx.click();
+    $('time').textContent = 'الوقت: ' + api.nextTime();
   });
 
   RAW.kitchen.mount($('stage'), {
     // الاقتراب بيوري اسم المحطة والكاميرا بتقرّب — من غير ما تفتح لوحة
     onStation(st) {
       ui.setNear(st, st ? 'دوس على الماكينة أو اضغط E' : '');
-      if (!st && ui.isOpen()) { ui.close(); setPaneled(false); }
+      if (!st && ui.isOpen()) { ui.close(); setPaneled(false); if (api) api.cupTo(null); }
     },
     // الوصول بعد طلب مقصود (زرار أو كليك على الماكينة) بيفتح لوحة الشغل
     onArrive(st) {
       ui.open(st);
       setPaneled(true);
+      if (api) api.cupTo(st.id);            // الكوباية بتروح معاها للمحطة
     },
     onInteract(st) {
-      if (ui.isOpen()) { ui.close(); setPaneled(false); }
-      else { ui.open(st); setPaneled(true); }
+      if (ui.isOpen()) { ui.close(); setPaneled(false); if (api) api.cupTo(null); }
+      else { ui.open(st); setPaneled(true); if (api) api.cupTo(st.id); }
     },
     onOperate(st) {
       const rec = RAW.recipes[st.id];
       ui.say(st, (rec && rec.run) || 'شغّالة…');
     },
-    onEscape() { if (ui.isOpen()) { ui.close(); setPaneled(false); } }
+    onEscape() { if (ui.isOpen()) { ui.close(); setPaneled(false); if (api) api.cupTo(null); } }
   }).then(a => {
     api = a;
     if (!a) { giveUp(); return; }
     window.RAWKitchen = a;                 // للتشخيص ولربط صفحات تانية
     // ?go=espresso يمشي لها · ?at=espresso يبدأ عندها
+    $('time').textContent = 'الوقت: ' + a.timeName();
+
+    // قراءة حالة المشروب: بتظهر أول ما يبقى في الكوباية حاجة
+    const cupBox = $('cup');
+    setInterval(() => {
+      const d = a.drink();
+      if (d.level <= 0.01 && !d.ice) { cupBox.hidden = true; return; }
+      cupBox.hidden = false;
+      $('cupTemp').textContent = d.temp + '°م';
+      $('cupFill').textContent = Math.round(d.level * 100) + '%';
+      $('cupIce').textContent = d.ice ? d.ice + ' تلج' : 'من غير تلج';
+    }, 500);
+
+    // أول تفاعل من المستخدم هو اللي بيسمح بتشغيل الصوت في المتصفح
+    addEventListener('pointerdown', () => RAW.sfx.ambience(RAW.sfx.on), { once: true });
+
     const q = new URLSearchParams(location.search);
     if (q.get('at')) a.place(q.get('at'));
     else if (q.get('go')) a.goTo(q.get('go'));

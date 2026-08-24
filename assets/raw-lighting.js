@@ -6,10 +6,12 @@
   'use strict';
   const RAW = global.RAW = global.RAW || {};
 
-  RAW.lighting = function (THREE, scene, mats) {
+  RAW.lighting = function (THREE, scene, mats, cove) {
     // ضوء عام دافي من فوق وبارد شوية من تحت
-    scene.add(new THREE.HemisphereLight(0xFFF3E2, 0x8A7C68, 0.8));
-    scene.add(new THREE.AmbientLight(0xFFF6EC, 0.34));
+    const hemi = new THREE.HemisphereLight(0xFFF3E2, 0x8A7C68, 0.8);
+    scene.add(hemi);
+    const amb = new THREE.AmbientLight(0xFFF6EC, 0.34);
+    scene.add(amb);
 
     // Key: دافي وناعم من فوق وقدّام — هو اللي بيرمي الظل
     const key = new THREE.DirectionalLight(0xFFEFD6, 1.45);
@@ -75,6 +77,56 @@
     overRight.position.set(6.8, 2.4, -5.2);
     scene.add(overRight);
 
-    return { key, fill, rim, day, strip, pendants, overCounter, overRight };
+    /* ---------- الإضاءة حسب الوقت ----------
+       نفس الأوضة بتتغيّر مع اليوم: صبح دافي، ضهر مفتوح، مغرب عسلي، وليل
+       بيعتمد على الإضاءة العملية. الألوان والشدّات بس اللي بتتغيّر. */
+    const PRESETS = {
+      morning: { name: 'الصبح', key: 0xFFEAD0, keyI: 1.42, hemi: 0.82, amb: 0.32,
+                 day: 0xEAF2FF, dayI: 24, warm: 0.85, bg: 0xEBE4D8, shaft: 0.09 },
+      noon:    { name: 'الضهر', key: 0xFFF6E8, keyI: 1.65, hemi: 0.95, amb: 0.38,
+                 day: 0xF2F7FF, dayI: 32, warm: 0.6,  bg: 0xEFE9DE, shaft: 0.05 },
+      sunset:  { name: 'المغرب', key: 0xFFC98C, keyI: 1.05, hemi: 0.6,  amb: 0.26,
+                 day: 0xFFD2A0, dayI: 15, warm: 1.35, bg: 0xE6D6C2, shaft: 0.13 },
+      night:   { name: 'الليل',  key: 0xBFD0F0, keyI: 0.38, hemi: 0.34, amb: 0.18,
+                 day: 0x9FB6E0, dayI: 5,  warm: 1.9,  bg: 0xCFC3B2, shaft: 0.03 }
+    };
+    const ORDER = ['morning', 'noon', 'sunset', 'night'];
+    let now = 'noon';
+
+    function setTime(id) {
+      const p = PRESETS[id] || PRESETS.noon;
+      now = PRESETS[id] ? id : 'noon';
+      key.color.setHex(p.key); key.intensity = p.keyI;
+      hemi.intensity = p.hemi;
+      amb.intensity = p.amb;
+      day.color.setHex(p.day); day.intensity = p.dayI;
+      rim.intensity = 0.3 + p.warm * 0.22;
+      strip.forEach(l => (l.intensity = 2.6 * p.warm));
+      pendants.forEach(g => g.children.forEach(c => {
+        if (c.isPointLight) c.intensity = 4.4 * p.warm;
+        if (c.material && c.material.emissive) c.material.emissiveIntensity = 0.9 * p.warm;
+      }));
+      overCounter.intensity = 5.5 * p.warm;
+      overRight.intensity = 4.4 * p.warm;
+      cove.material.emissiveIntensity = 0.55 * p.warm;
+      if (scene.background && scene.background.setHex) scene.background.setHex(p.bg);
+      if (scene.fog) scene.fog.color.setHex(p.bg);
+      return p;
+    }
+    function nextTime() {
+      return setTime(ORDER[(ORDER.indexOf(now) + 1) % ORDER.length]);
+    }
+    /** الوقت الحقيقي للجهاز → أقرب حالة */
+    function timeOfDay(hour) {
+      if (hour == null) hour = new Date().getHours();
+      if (hour >= 6 && hour < 11) return 'morning';
+      if (hour >= 11 && hour < 16) return 'noon';
+      if (hour >= 16 && hour < 20) return 'sunset';
+      return 'night';
+    }
+
+    return { key, fill, rim, day, strip, pendants, overCounter, overRight,
+             setTime, nextTime, timeOfDay, presets: PRESETS,
+             get current() { return now; } };
   };
 })(window);

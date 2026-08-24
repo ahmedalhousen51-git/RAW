@@ -114,6 +114,19 @@ button { font-family: inherit; }
 .raw-tag small { display: block; font-weight: 500; font-size: .73rem; opacity: .75; margin-top: 3px; }
 .raw-wrap.paneled .raw-tag { opacity: 0; }
 
+/* ---------- قراءة حالة الكوباية ---------- */
+.raw-cup {
+  position: absolute; left: 50%; bottom: 74px; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(36, 28, 22, .72); color: #F7F2E8;
+  padding: 6px 14px; border-radius: 999px;
+  font-size: .74rem; font-weight: 700; letter-spacing: .01em;
+  backdrop-filter: blur(6px); pointer-events: none;
+}
+.raw-cup[hidden] { display: none; }   /* الـdisplay:flex فوق بيلغي hidden لوحده */
+.raw-cup i { width: 4px; height: 4px; border-radius: 50%; background: #E2BE86; }
+.raw-wrap.paneled .raw-cup { bottom: auto; top: 16px; left: 34%; }
+
 /* ---------- لوحة العمل ---------- */
 .raw-panel {
   position: absolute; left: 50%; bottom: 20px;

@@ -399,6 +399,6 @@
       block(g.position.x, g.position.z, 0.42, 0.42);
     });
 
-    return { floor, obstacles, layout: L };
+    return { floor, obstacles, layout: L, cove };
   };
 })(window);

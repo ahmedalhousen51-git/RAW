@@ -69,15 +69,43 @@
     /* ---------- المكوّنات ---------- */
     const mats = RAW.materials(THREE);
     const fx = RAW.fx(THREE);
-    RAW.lighting(THREE, scene, mats);
     const room = RAW.room(THREE, scene, mats, fx);
+    const lights = RAW.lighting(THREE, scene, mats, room.cove);
+    lights.setTime(o.time || lights.timeOfDay());       // لون الإضاءة حسب وقت اليوم
     const st = RAW.stations(THREE, scene, mats, fx);
     const stations = st.stations, stationRoots = st.roots;
     const chef = RAW.character(THREE, scene, mats);
     chef.root.position.set(START.x, 0, START.z);
 
+    // الكوباية بتقف على الجزيرة، وبتتنقل مع نورة لما تفتح محطة
+    const drink = RAW.drink(THREE, scene, mats, fx);
+    const CUP_HOME = { x: RAW.layout.island.x + 1.15, y: RAW.layout.counterY + 0.05,
+                       z: RAW.layout.island.z + 0.35 };
+    drink.placeAt(CUP_HOME.x, CUP_HOME.y, CUP_HOME.z);
+    drink.onPour = info => { if (RAW.sfx) RAW.sfx.pour(info); };
+
+    const atmos = RAW.atmos(THREE, renderer, scene, mats);
+    atmos.tune();                                        // قوة الانعكاس لكل خامة
+    atmos.setShaft(lights.presets[lights.current].shaft);
+
     const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
     const rig = RAW.cameraRig(THREE, cam, renderer.domElement, onTap);
+
+    /* نورة بتتابع الماوس: بنرمي شعاع من الكاميرا ونقف عند نفس بُعدها،
+       فالنقطة تفضل في مستوى جسمها بدل ما تبص في الأرض. */
+    const lookPt = new THREE.Vector3();
+    let lookFresh = 0;
+    function onPointerMove(e) {
+      const r = renderer.domElement.getBoundingClientRect();
+      ndc.x = ((e.clientX - r.left) / r.width) * 2 - 1;
+      ndc.y = -((e.clientY - r.top) / r.height) * 2 + 1;
+      ray.setFromCamera(ndc, cam);
+      const d = cam.position.distanceTo(chef.root.position);
+      ray.ray.at(Math.max(1.2, d), lookPt);
+      lookPt.y = Math.max(0.8, Math.min(2.4, lookPt.y));
+      lookFresh = 3.5;                       // بعد كام ثانية سكون بترجع لشغلها
+    }
+    renderer.domElement.addEventListener('pointermove', onPointerMove);
 
     /* ---------- الحركة والاصطدام ---------- */
     const goal = chef.root.position.clone();
@@ -141,6 +169,32 @@
       return true;
     }
 
+    /* أثر الخطوة على الكوباية: صبّ، تلج، تسخين، أو تقليب */
+    function serve(stationId, step, value) {
+      const f = step && step.fx;
+      if (!f) return false;
+      const v = typeof value === 'number' ? value : 0;
+      if (f.act === 'pour') {
+        drink.pour({
+          amount: f.amount != null ? f.amount : v * (f.per || 0.02),
+          color: f.color, tempC: f.temp
+        });
+      } else if (f.act === 'ice') {
+        drink.addIce(v || 6);
+        if (RAW.sfx) RAW.sfx.clink();
+      } else if (f.act === 'heat') {
+        drink.state.temp = Math.max(drink.state.temp, v || 90);
+        drink.stir();
+        if (f.color != null) drink.pour({ amount: 0.01, color: f.color });
+        if (RAW.sfx) RAW.sfx.machine('milk');
+      } else if (f.act === 'stir') {
+        drink.stir();
+        if (f.color != null) drink.pour({ amount: 0.01, color: f.color });
+        if (RAW.sfx) RAW.sfx.stir();
+      }
+      return true;
+    }
+
     /* دوسة على المشهد: ماكينة الأول، وبعدين الأرض.
        الأرضية plane كبير ورا كل حاجة، فلو اتفحصت الأول مش هتقدر تدوس ماكينة أبداً. */
     function onTap(e) {
@@ -160,6 +214,17 @@
         collide(goal);
         pending = null;
       }
+    }
+
+    /* الكوباية بتروح مع نورة للمحطة اللي فتحتها، وبترجع الجزيرة بعدها */
+    function cupTo(id) {
+      const s = id && stations[id];
+      if (!s) { drink.moveTo(CUP_HOME.x, CUP_HOME.z, CUP_HOME.y); return false; }
+      // على الرخام قدّام الماكينة شوية، في ناحية نورة
+      const p = s.obj.position;
+      const towards = s.at.clone().sub(p).setY(0).normalize().multiplyScalar(0.32);
+      drink.moveTo(p.x + towards.x, p.z + towards.z, RAW.layout.counterY + 0.05);
+      return true;
     }
 
     /* طلب محطة: يمشي لها، ولما يوصل تتفتح لوحتها */
@@ -226,8 +291,16 @@
         while (diff < -Math.PI) diff += Math.PI * 2;
         chef.root.rotation.y += diff * Math.min(1, dt * 6);
       }
+      // البصّة: على الماوس لو اتحرك من شوية، وإلا على المحطة اللي قدامها
+      lookFresh = Math.max(0, lookFresh - dt);
+      if (lookFresh > 0) chef.look(lookPt);
+      else if (current) chef.look(current.obj.position);
+      else chef.look(null);
+
       chef.update(dt, moving, 1);
       fx.update(dt);
+      drink.update(dt, now);
+      atmos.update(dt, now);
 
       // المحطة اللي هو عندها دلوقتي
       const near = nearestStation();
@@ -281,6 +354,23 @@
         pending = null;
         return true;
       },
+      /** أثر خطوة على المشروب (بينده من لوحة العمل) */
+      serve,
+      /** ينقل الكوباية لمحطة، أو يرجّعها للجزيرة لو null */
+      cupTo,
+      /** حالة المشروب: المستوى والحرارة والتلج */
+      drink() {
+        return { level: +drink.level.toFixed(2), temp: Math.round(drink.state.temp),
+                 ice: drink.iceCount };
+      },
+      /** كوباية جديدة */
+      newCup() { drink.reset(); cupTo(null); return true; },
+      /** نورة: تعبير مؤقت */
+      express(kind, secs) { chef.express(kind, secs); },
+      /** الإضاءة حسب الوقت: 'morning' · 'noon' · 'sunset' · 'night' */
+      setTime(id) { const p = lights.setTime(id); atmos.setShaft(p.shaft); atmos.refresh(); return p.name; },
+      nextTime() { const p = lights.nextTime(); atmos.setShaft(p.shaft); atmos.refresh(); return p.name; },
+      timeName() { return lights.presets[lights.current].name; },
       /** أرقام الأداء: عدد الـdraw calls والمثلثات والمجسمات */
       stats() {
         const i = renderer.info;
@@ -302,6 +392,8 @@
         return { x: +p.x.toFixed(2), z: +p.z.toFixed(2) };
       },
       camera: cam,
+      scene: scene,
+      cup: drink.group,
       destroy() {
         cancelAnimationFrame(raf);
         removeEventListener('keydown', onKeyDown);
@@ -309,6 +401,8 @@
         removeEventListener('resize', resize);
         if (ro) ro.disconnect();
         rig.dispose();
+        renderer.domElement.removeEventListener('pointermove', onPointerMove);
+        atmos.dispose();
         scene.traverse(n => {
           if (n.isMesh) {
             if (n.geometry) n.geometry.dispose();
