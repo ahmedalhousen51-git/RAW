@@ -41,21 +41,25 @@
 
   <div class="raw-tag" id="tag"></div>
 
-  <section class="raw-panel" id="panel" aria-live="polite">
-    <header>
-      <h2 id="panelName">المحطة</h2>
-      <span class="raw-step" id="panelStep">الخطوة ١</span>
-      <button type="button" class="raw-x" id="panelClose" aria-label="اقفل اللوحة">✕</button>
-    </header>
-    <h4 id="panelTitle">—</h4>
-    <p id="panelDesc">—</p>
-    <div class="raw-ctl" id="panelCtl" hidden>
-      <div class="row"><span id="panelLabel">القيمة</span><output id="panelValue">0</output></div>
-      <input type="range" id="panelRange" min="0" max="10" step="1" value="5">
+  <section class="raw-hud" id="hud" aria-live="polite"></section>
+
+  <div class="raw-nora" id="nora" data-mood="calm">
+    <div class="face">
+      <svg viewBox="0 0 48 48" width="46" height="46" aria-hidden="true">
+        <circle cx="24" cy="27" r="14" fill="#E8C49E"/>
+        <path d="M10 24a14 14 0 0 1 28 0v-2a14 14 0 0 0-28 0z" fill="#241A14"/>
+        <path d="M10 24c0-9 6-14 14-14s14 5 14 14c0-5-5-8-14-8s-14 3-14 8z" fill="#241A14"/>
+        <circle cx="38" cy="18" r="5" fill="#241A14"/>
+        <circle cx="19" cy="27" r="2.2" fill="#1F1B18"/>
+        <circle cx="29" cy="27" r="2.2" fill="#1F1B18"/>
+        <path d="M19.5 33.5q4.5 4 9 0" stroke="#1F1B18" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+        <path d="M24 41c7 0 11 3 12 7H12c1-4 5-7 12-7z" fill="#2E5A4B"/>
+      </svg>
     </div>
-    <button type="button" class="raw-ok" id="panelOk">تأكيد الخطوة</button>
-    <div class="raw-msg" id="panelMsg"></div>
-  </section>
+    <div class="bubble" id="noraText">—</div>
+  </div>
+
+  <div class="raw-toasts" id="toasts"></div>
 
   <div class="raw-load" id="load"><i></i><span>بجهّز مطبخ RAW…</span></div>
 
@@ -74,9 +78,10 @@
 <script src="assets/raw-drink.js"></script>
 <script src="assets/raw-atmos.js"></script>
 <script src="assets/raw-camera.js"></script>
-<script src="assets/raw-recipes.js"></script>
+<script src="assets/raw-consoles.js"></script>
 <script src="assets/raw-sfx.js"></script>
 <script src="assets/raw-ui.js"></script>
+<script src="assets/raw-console-ui.js"></script>
 <script src="assets/raw-kitchen.js"></script>
 <script>
 (function () {
@@ -85,11 +90,7 @@
   const wrap = $('wrap');
   const els = {
     stock: $('stock'), tag: $('tag'), sound: $('sound'),
-    panel: $('panel'), panelName: $('panelName'), panelStep: $('panelStep'),
-    panelTitle: $('panelTitle'), panelDesc: $('panelDesc'),
-    panelCtl: $('panelCtl'), panelLabel: $('panelLabel'),
-    panelValue: $('panelValue'), panelRange: $('panelRange'),
-    panelOk: $('panelOk'), panelMsg: $('panelMsg'), panelClose: $('panelClose')
+    hud: $('hud'), nora: $('nora'), noraText: $('noraText'), toasts: $('toasts')
   };
 
   const done = () => $('load').classList.add('gone');
@@ -98,34 +99,50 @@
   if (!RAW.kitchen.supported()) { giveUp(); return; }
 
   let api = null;
-  const S = id => api && api.station ? api.station(id) : null;
-  const setPaneled = on => wrap.classList.toggle('paneled', on);
+  const setFocusMode = on => wrap.classList.toggle('focus', on);
 
   const ui = RAW.ui(els, {
-    // زرار من المخزون = طلب مقصود: يمشي للمحطة وتتفتح لوحتها لما يوصل
+    // زرار من المخزون = طلب مقصود: تمشي للمحطة وتتفتح لوحتها لما توصل
     onPick(stationId) {
       RAW.sfx.click();
       if (api) api.goTo(stationId);
-    },
-    // الخطوة الصح: الماكينة تشتغل، الكوباية تستقبل اللي اتعمل، ونورة تبتسم
-    onConfirm(st, step, value) {
-      RAW.sfx.confirm();
+    }
+  });
+
+  /* لوحة تحكّم الماكينة: بتشغّل الماكينة في المشهد، وبتصبّ في الكوباية،
+     وبتخلّي نورة تعلّق على النتيجة. */
+  const hud = RAW.console(els, {
+    onRun(station, spec) {
       if (!api) return;
-      api.use(st.id);
-      api.serve(st.id, step, value);
-      api.express('happy', 1.8);
+      api.use(station.id);                       // لمبة الماكينة والبخار والصوت
+      if (spec.action.sound && RAW.sfx) RAW.sfx.machine(spec.action.sound);
+      api.express('calm', 0.2);
     },
-    onError() {
+    onDone(station, spec, values, rating) {
+      if (!api) return;
+      api.serve(station.id, spec, values);       // اللي اتعمل بينزل في الكوباية
+      if (rating === 'bad') { RAW.sfx.error(); api.express('oops', 2); }
+      else { RAW.sfx.confirm(); api.express('happy', 2.4); }
+    },
+    onError(station) {
       RAW.sfx.error();
       if (api) api.express('oops', 1.6);
     },
-    onDone(st) {
-      if (!api) return;
-      api.use(st.id);
-      api.express('happy', 2.4);
+    // بعد عملية ناجحة الكاميرا بترجع للمطبخ لوحدها
+    onFinish() {
+      hud.close();
+      setFocusMode(false);
+      if (api) { api.cupTo(null); api.unfocus(); }
     },
-    onClose() { setPaneled(false); if (api) api.cupTo(null); }
+    onClose() {
+      setFocusMode(false);
+      if (api) { api.cupTo(null); api.unfocus(); }
+    },
+    onPower() {},
+    onValue() {}
   });
+
+  window.RAWHud = hud;                     // للتشخيص ولربط صفحات تانية
 
   // زرار الصوت بيغيّر نصّه وبيشغّل/يقفل همهمة المكان
   els.sound.addEventListener('click', () => {
@@ -144,23 +161,28 @@
     // الاقتراب بيوري اسم المحطة والكاميرا بتقرّب — من غير ما تفتح لوحة
     onStation(st) {
       ui.setNear(st, st ? 'دوس على الماكينة أو اضغط E' : '');
-      if (!st && ui.isOpen()) { ui.close(); setPaneled(false); if (api) api.cupTo(null); }
+      if (!st && hud.isOpen()) { hud.close(); setFocusMode(false); if (api) api.cupTo(null); }
     },
-    // الوصول بعد طلب مقصود (زرار أو كليك على الماكينة) بيفتح لوحة الشغل
+    // الوصول بعد طلب مقصود بيفتح لوحة تحكّم الماكينة
     onArrive(st) {
-      ui.open(st);
-      setPaneled(true);
-      if (api) api.cupTo(st.id);            // الكوباية بتروح معاها للمحطة
+      hud.open(st);
+      setFocusMode(true);
+      if (api) api.cupTo(st.id);
     },
     onInteract(st) {
-      if (ui.isOpen()) { ui.close(); setPaneled(false); if (api) api.cupTo(null); }
-      else { ui.open(st); setPaneled(true); if (api) api.cupTo(st.id); }
+      if (hud.busy()) return;                    // مش بنقفل والماكينة شغّالة
+      if (hud.isOpen()) { hud.close(); setFocusMode(false); if (api) { api.cupTo(null); api.unfocus(); } }
+      else { hud.open(st); setFocusMode(true); if (api) { api.cupTo(st.id); api.refocus(); } }
     },
     onOperate(st) {
-      const rec = RAW.recipes[st.id];
-      ui.say(st, (rec && rec.run) || 'شغّالة…');
+      const spec = RAW.consoles[st.id];
+      ui.say(st, (spec && spec.action.busy) || 'شغّالة…');
     },
-    onEscape() { if (ui.isOpen()) { ui.close(); setPaneled(false); if (api) api.cupTo(null); } }
+    onEscape() {
+      if (hud.busy()) return;
+      if (hud.isOpen()) { hud.close(); setFocusMode(false); if (api) { api.cupTo(null); api.unfocus(); } }
+    },
+    onTick(dt) { hud.tick(dt); }
   }).then(a => {
     api = a;
     if (!a) { giveUp(); return; }

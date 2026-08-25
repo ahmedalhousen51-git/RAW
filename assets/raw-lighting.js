@@ -125,7 +125,7 @@
       return 'night';
     }
 
-    return { key, fill, rim, day, strip, pendants, overCounter, overRight,
+    return { key, fill, rim, day, hemi, amb, strip, pendants, overCounter, overRight,
              setTime, nextTime, timeOfDay, presets: PRESETS,
              get current() { return now; } };
   };

@@ -1,0 +1,402 @@
+/* ==========================================================================
+   RAW — محرّك لوحات تحكم الماكينات
+
+   بيبني اللوحة من الوصف اللي في raw-consoles.js: شاشة LCD، لمبات، شرايط،
+   أزرار، عدّاد تنازلي بشريط تقدّم، تقييم بعد كل عملية، وتعليق من نورة.
+
+   الحالة بتفضل محفوظة لكل ماكينة: القيم، عدد المرات، ومستوى الماء.
+   ========================================================================== */
+(function (global) {
+  'use strict';
+  const RAW = global.RAW = global.RAW || {};
+
+  // ثواني الماكينة بتجري أسرع من ثواني الحقيقة — ٢٨ ثانية استخلاص بتاخد ~١٠
+  const TIME_SCALE = 0.36;
+  const AR = n => String(n);
+
+  RAW.console = function (els, hooks) {
+    const h = hooks || {};
+    const state = {};                 // حالة كل ماكينة
+    let spec = null, station = null;  // المفتوح دلوقتي
+    let run = null;                   // العملية الشغّالة
+    let closeTimer = 0;
+
+    function machine(id) {
+      if (state[id]) return state[id];
+      const sp = RAW.consoles[id];
+      const values = {};
+      sp.controls.forEach(c => {
+        values[c.k] = c.type === 'counter' ? 0 : (c.type === 'choice' ? c.def : c.def);
+      });
+      state[id] = { power: !sp.power, values: values, runs: 0, water: 100, care: false, last: null };
+      return state[id];
+    }
+
+    /* ---------- بناء اللوحة ---------- */
+    const el = (tag, cls, html) => {
+      const n = document.createElement(tag);
+      if (cls) n.className = cls;
+      if (html != null) n.innerHTML = html;
+      return n;
+    };
+
+    function build() {
+      const m = machine(station.id);
+      els.hud.innerHTML = '';
+
+      /* الترويسة: اسم الماكينة + اللمبات + زرار الخروج */
+      const head = el('header', 'raw-hud-head');
+      head.appendChild(el('div', 'raw-hud-id',
+        '<span class="ico">' + spec.icon + '</span>' +
+        '<span class="txt"><b>' + spec.model + '</b><small>' + spec.sub + '</small></span>'));
+      const leds = el('div', 'raw-leds',
+        '<i class="led ready" title="جاهز"></i>' +
+        '<i class="led busy" title="تشغيل"></i>' +
+        '<i class="led warn" title="تحذير"></i>');
+      head.appendChild(leds);
+      const x = el('button', 'raw-hud-x', '✕');
+      x.type = 'button';
+      x.title = 'رجوع للمطبخ';
+      x.addEventListener('click', () => { close(); if (h.onClose) h.onClose(); });
+      head.appendChild(x);
+      els.hud.appendChild(head);
+
+      /* شاشة LCD */
+      const lcd = el('div', 'raw-lcd');
+      spec.readouts.forEach(r => {
+        const cell = el('div', 'raw-lcd-cell',
+          '<span class="ic">' + r.icon + '</span>' +
+          '<span class="val" data-r="' + r.k + '">—</span>' +
+          '<span class="un">' + r.unit + '</span>');
+        lcd.appendChild(cell);
+      });
+      els.hud.appendChild(lcd);
+
+      /* مفتاح التشغيل + مؤشر الماء */
+      const bar = el('div', 'raw-hud-bar');
+      if (spec.power) {
+        const pw = el('button', 'raw-power', '⏻ <span>' + (m.power ? 'شغّالة' : 'مطفية') + '</span>');
+        pw.type = 'button';
+        pw.classList.toggle('on', m.power);
+        pw.addEventListener('click', () => {
+          if (run) return;
+          m.power = !m.power;
+          pw.classList.toggle('on', m.power);
+          pw.querySelector('span').textContent = m.power ? 'شغّالة' : 'مطفية';
+          press();
+          if (h.onPower) h.onPower(station, m.power);
+          say(m.power ? spec.voice.hint : 'الماكينة مطفية — دوسي على المفتاح.');
+          paint();
+        });
+        bar.appendChild(pw);
+      }
+      if (spec.gauge) {
+        bar.appendChild(el('div', 'raw-gauge',
+          '<span>' + spec.gauge.label + '</span>' +
+          '<i><b data-gauge></b></i>'));
+      }
+      if (spec.care) {
+        const care = el('button', 'raw-care', spec.care.label);
+        care.type = 'button';
+        care.addEventListener('click', () => {
+          m.care = false;
+          press();
+          toast('اتنضّفت — الماكينة جاهزة', 'good');
+          paint();
+        });
+        bar.appendChild(care);
+      }
+      if (bar.children.length) els.hud.appendChild(bar);
+
+      /* التحكّمات */
+      const ctrls = el('div', 'raw-ctrls');
+      spec.controls.forEach(c => {
+        if (c.type === 'slider') ctrls.appendChild(slider(c, m));
+        else if (c.type === 'choice') ctrls.appendChild(choice(c, m));
+        else if (c.type === 'counter') ctrls.appendChild(counter(c, m));
+      });
+      els.hud.appendChild(ctrls);
+
+      /* زرار التشغيل + شريط التقدّم */
+      const go = el('button', 'raw-run', spec.action.label);
+      go.type = 'button';
+      go.addEventListener('click', start);
+      els.hud.appendChild(go);
+      els.hud.appendChild(el('div', 'raw-prog', '<i data-prog></i><span data-count></span>'));
+      els.hud.appendChild(el('div', 'raw-note', ''));
+
+      paint();
+    }
+
+    /* شريط ضبط بقيمة ومدى صح مرسوم عليه */
+    function slider(c, m) {
+      const wrap = el('div', 'raw-ctrl');
+      wrap.appendChild(el('div', 'row',
+        '<span>' + c.label + '</span><output data-out="' + c.k + '">—</output>'));
+      const track = el('div', 'raw-track');
+      const okFrom = ((c.ok[0] - c.min) / (c.max - c.min)) * 100;
+      const okTo = ((c.ok[1] - c.min) / (c.max - c.min)) * 100;
+      track.appendChild(el('i', 'ok'));
+      track.querySelector('.ok').style.insetInlineStart = okFrom + '%';
+      track.querySelector('.ok').style.width = (okTo - okFrom) + '%';
+      const inp = document.createElement('input');
+      inp.type = 'range';
+      inp.min = c.min; inp.max = c.max; inp.step = c.step;
+      inp.value = m.values[c.k];
+      inp.addEventListener('input', () => {
+        if (run) { inp.value = m.values[c.k]; return; }
+        m.values[c.k] = parseFloat(inp.value);
+        paint();
+        if (h.onValue) h.onValue(station, c.k, m.values[c.k]);
+      });
+      inp.addEventListener('change', press);
+      track.appendChild(inp);
+      wrap.appendChild(track);
+      return wrap;
+    }
+
+    /* أزرار اختيار دائرية (النكهات) */
+    function choice(c, m) {
+      const wrap = el('div', 'raw-ctrl');
+      wrap.appendChild(el('div', 'row', '<span>' + c.label + '</span><output data-out="' + c.k + '">—</output>'));
+      const row = el('div', 'raw-choice');
+      c.options.forEach(o => {
+        const b = el('button', 'chip', '<i style="background:' + o.c + '"></i>' + o.n);
+        b.type = 'button';
+        b.dataset.v = o.v;
+        b.addEventListener('click', () => {
+          if (run) return;
+          m.values[c.k] = o.v;
+          press();
+          paint();
+          if (h.onValue) h.onValue(station, c.k, o.v);
+        });
+        row.appendChild(b);
+      });
+      wrap.appendChild(row);
+      return wrap;
+    }
+
+    /* عدّاد ضغطات ليه هدف */
+    function counter(c, m) {
+      const wrap = el('div', 'raw-ctrl');
+      wrap.appendChild(el('div', 'row',
+        '<span>' + c.label + '</span><output data-out="' + c.k + '">—</output>'));
+      const row = el('div', 'raw-counter');
+      const minus = el('button', 'cbtn', '−'); minus.type = 'button';
+      const plus = el('button', 'cbtn', '+'); plus.type = 'button';
+      const dots = el('div', 'dots');
+      for (let i = 0; i < c.max; i++) dots.appendChild(el('i'));
+      const bump = d => {
+        if (run) return;
+        m.values[c.k] = Math.max(0, Math.min(c.max, (m.values[c.k] || 0) + d));
+        press();
+        paint();
+        if (h.onValue) h.onValue(station, c.k, m.values[c.k]);
+      };
+      minus.addEventListener('click', () => bump(-1));
+      plus.addEventListener('click', () => bump(1));
+      row.appendChild(minus); row.appendChild(dots); row.appendChild(plus);
+      wrap.appendChild(row);
+      wrap.appendChild(el('div', 'hint', 'الهدف: ' + AR(c.target) + ' ضخة'));
+      return wrap;
+    }
+
+    /* ---------- تحديث القراءات ---------- */
+    function paint() {
+      if (!spec) return;
+      const m = machine(station.id);
+      // شاشة LCD
+      spec.readouts.forEach(r => {
+        const node = els.hud.querySelector('[data-r="' + r.k + '"]');
+        if (!node) return;
+        let v;
+        if (r.counter) v = m.runs;
+        else if (r.k === 'ml' && spec.controls.some(c => c.k === 'pumps')) {
+          v = (m.values.pumps || 0) * 7;                       // كل ضخة ٧ مل
+        } else v = m.values[r.k];
+        if (typeof v === 'number') node.textContent = v.toFixed(r.digits);
+        else node.textContent = v == null ? '—' : String(v);
+      });
+      // قيم التحكّمات
+      spec.controls.forEach(c => {
+        const out = els.hud.querySelector('[data-out="' + c.k + '"]');
+        const val = m.values[c.k];
+        if (out) {
+          if (c.type === 'choice') {
+            const o = c.options.filter(x => x.v === val)[0];
+            out.textContent = o ? o.n : '—';
+          } else {
+            out.textContent = val + (c.unit ? ' ' + c.unit : '');
+            out.classList.toggle('off', c.ok && (val < c.ok[0] || val > c.ok[1]));
+            if (c.target != null) out.classList.toggle('off', val !== c.target);
+          }
+        }
+        if (c.type === 'choice') {
+          els.hud.querySelectorAll('.raw-choice .chip').forEach(b => {
+            b.classList.toggle('on', b.dataset.v === val);
+          });
+        }
+        if (c.type === 'counter') {
+          const dots = els.hud.querySelectorAll('.raw-counter .dots i');
+          for (let i = 0; i < dots.length; i++) {
+            dots[i].classList.toggle('on', i < (val || 0));
+            dots[i].classList.toggle('goal', i === c.target - 1);
+          }
+        }
+      });
+      // مؤشر الماء
+      const gauge = els.hud.querySelector('[data-gauge]');
+      if (gauge) {
+        gauge.style.width = m.water + '%';
+        gauge.classList.toggle('low', m.water < 25);
+      }
+      // زرار الصيانة
+      const care = els.hud.querySelector('.raw-care');
+      if (care) care.classList.toggle('due', m.care);
+      // اللمبات
+      const ready = els.hud.querySelector('.led.ready');
+      const busy = els.hud.querySelector('.led.busy');
+      const warn = els.hud.querySelector('.led.warn');
+      if (ready) ready.classList.toggle('on', m.power && !run);
+      if (busy) busy.classList.toggle('on', !!run);
+      if (warn) warn.classList.toggle('on', m.care || m.water < 25 || m.last === 'bad');
+      // زرار التشغيل
+      const go = els.hud.querySelector('.raw-run');
+      if (go) {
+        go.disabled = !!run;
+        go.textContent = run ? (spec.action.busy || 'شغّالة…') : spec.action.label;
+      }
+    }
+
+    /* ---------- التشغيل ---------- */
+    function start() {
+      if (run || !spec) return;
+      const m = machine(station.id);
+      if (spec.power && !m.power) {
+        toast('شغّلي الماكينة الأول', 'bad');
+        say('دوسي على مفتاح التشغيل.', 'oops');
+        if (h.onError) h.onError(station);
+        return;
+      }
+      if (m.care) {
+        toast(spec.care.note, 'bad');
+        say('نضّفي الرأس الأول عشان الطعم ما يبوظش.', 'oops');
+        if (h.onError) h.onError(station);
+        return;
+      }
+      if (spec.gauge && m.water < 8) {
+        toast('الخزان فاضي — محتاج تعبئة', 'bad');
+        if (h.onError) h.onError(station);
+        return;
+      }
+      press();
+      const secsSpec = spec.action.secs;
+      const shown = typeof secsSpec === 'string' ? (m.values[secsSpec] || 10) : secsSpec;
+      run = { t: 0, dur: Math.max(1.2, shown * TIME_SCALE), shown: shown };
+      say(spec.voice.run, 'calm');
+      if (h.onRun) h.onRun(station, spec, m.values);
+      paint();
+    }
+
+    /* بيتنده من حلقة المشهد عشان العدّاد يمشي مع الفريمات */
+    function tick(dt) {
+      if (closeTimer > 0) {
+        closeTimer -= dt;
+        if (closeTimer <= 0 && h.onFinish) h.onFinish(station);
+      }
+      if (!run) return;
+      run.t += dt;
+      const k = Math.min(1, run.t / run.dur);
+      const prog = els.hud.querySelector('[data-prog]');
+      const count = els.hud.querySelector('[data-count]');
+      if (prog) prog.style.width = (k * 100) + '%';
+      if (count) count.textContent = Math.ceil(run.shown * (1 - k)) + ' ث';
+      if (k >= 1) finish();
+    }
+
+    function finish() {
+      const m = machine(station.id);
+      run = null;
+      const prog = els.hud.querySelector('[data-prog]');
+      const count = els.hud.querySelector('[data-count]');
+      if (prog) prog.style.width = '0%';
+      if (count) count.textContent = '';
+
+      // التقييم: كل تحكّم بره مداه بيخصم
+      const misses = [];
+      spec.controls.forEach(c => {
+        const v = m.values[c.k];
+        if (c.ok && (v < c.ok[0] || v > c.ok[1])) misses.push(v < c.ok[0] ? c.low : c.high);
+        else if (c.target != null && v !== c.target) misses.push(v < c.target ? c.low : c.high);
+      });
+      const rating = misses.length === 0 ? 'great' : (misses.length === 1 ? 'ok' : 'bad');
+      m.last = rating;
+      m.runs++;
+      if (spec.gauge) m.water = Math.max(0, m.water - (spec.gauge.drain || 5));
+      if (spec.care && m.runs % spec.care.every === 0) m.care = true;
+
+      const label = { great: 'ممتاز', ok: 'جيد', bad: 'يحتاج تحسين' }[rating];
+      const kind = rating === 'great' ? 'good' : (rating === 'ok' ? 'warn' : 'bad');
+      toast(label + (misses.length ? ' — ' + misses[0] : ''), kind);
+      say(spec.voice[rating], rating === 'bad' ? 'oops' : 'happy');
+      const note = els.hud.querySelector('.raw-note');
+      if (note) {
+        note.textContent = misses.length ? misses.join(' · ') : 'كل الأرقام جوه المدى المضبوط.';
+        note.className = 'raw-note ' + kind;
+      }
+      if (h.onDone) h.onDone(station, spec, m.values, rating);
+      paint();
+      closeTimer = rating === 'bad' ? 0 : 2.8;      // الرجوع التلقائي بعد نجاح بس
+    }
+
+    /* ---------- نورة والإشعارات ---------- */
+    function say(line, mood) {
+      if (!els.nora) return;
+      els.nora.classList.add('on');
+      els.noraText.textContent = line;
+      els.nora.dataset.mood = mood || 'calm';
+    }
+    function toast(msg, kind) {
+      if (!els.toasts) return;
+      const t = el('div', 'raw-toast ' + (kind || ''), msg);
+      els.toasts.appendChild(t);
+      setTimeout(() => t.classList.add('in'), 10);
+      setTimeout(() => {
+        t.classList.remove('in');
+        setTimeout(() => t.remove(), 350);
+      }, 2600);
+    }
+    // لمسة فيزيائية: اهتزاز خفيف على الموبايل + صوت زرار
+    function press() {
+      if (navigator.vibrate) { try { navigator.vibrate(8); } catch (e) {} }
+      if (RAW.sfx) RAW.sfx.click();
+    }
+
+    /* ---------- فتح وقفل ---------- */
+    function open(stObj) {
+      station = stObj;
+      spec = RAW.consoles[stObj.id];
+      if (!spec) return false;
+      closeTimer = 0;
+      build();
+      els.hud.classList.add('on');
+      if (els.nora) { els.nora.classList.add('on'); }
+      say(spec.voice.hint);
+      return true;
+    }
+    function close() {
+      if (!spec) return;
+      run = null;
+      closeTimer = 0;
+      els.hud.classList.remove('on');
+      if (els.nora) els.nora.classList.remove('on');
+      spec = null; station = null;
+    }
+    function isOpen() { return !!spec; }
+    function current() { return station; }
+    function busy() { return !!run; }
+
+    return { open, close, isOpen, current, busy, tick, toast, say, state };
+  };
+})(window);

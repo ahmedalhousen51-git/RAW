@@ -19,6 +19,7 @@
     // الشاشات الطولية بتضيّق مجال الرؤية الأفقي، فبنبعد الكاميرا شوية
     let spread = 1;
     let focus = null;                       // المحطة اللي الكاميرا مركّزة عليها
+    let roll = 0, breath = 0;               // ميلة درامية خفيفة ونَفَس دخول بطيء
     const target = WIDE.target.clone();
     const wantPos = new THREE.Vector3();
     const wantTarget = new THREE.Vector3();
@@ -90,15 +91,21 @@
       return fov;
     }
 
-    function setFocus(st) { focus = st || null; }
+    function setFocus(st) {
+      if (st !== focus) breath = 0;
+      focus = st || null;
+    }
     function isFocused() { return !!focus; }
 
     function update(dt, chefPos) {
       if (focus) {
-        // لقطة قريبة: قدّام المحطة، بتبص على قلبها
-        wantTarget.copy(focus.obj.position).add(new THREE.Vector3(0, 0.18, 0));
-        wantPos.copy(focus.obj.position).add(focus.view);
+        // لقطة قريبة: قدّام المحطة، بتبص على قلبها، مع دخول بطيء (push-in)
+        breath += dt;
+        const push = 1 - Math.min(0.06, breath * 0.02);
+        wantTarget.copy(focus.obj.position).add(new THREE.Vector3(0, -0.34, 0));
+        wantPos.copy(focus.obj.position).addScaledVector(focus.view, push);
       } else {
+        breath = 0;
         wantTarget.set(WIDE.target.x + (chefPos ? chefPos.x * 0.22 : 0), WIDE.target.y, WIDE.target.z);
         widePos(wantPos, chefPos ? chefPos.x : 0);
       }
@@ -111,6 +118,10 @@
       cam.position.x = Math.max(-7.5, Math.min(7.5, cam.position.x));
       cam.position.z = Math.max(-5.4, Math.min(15.5, cam.position.z));
       cam.lookAt(target);
+      // Dutch angle: ميلة بسيطة ناحية العكس من زاوية اللقطة — دراما من غير دوخة
+      const wantRoll = focus ? (focus.view.x >= 0 ? -0.042 : 0.042) : 0;
+      roll += (wantRoll - roll) * Math.min(1, dt * 2.2);
+      cam.rotateZ(roll);
     }
 
     function dispose() {

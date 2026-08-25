@@ -107,6 +107,37 @@
     }
     renderer.domElement.addEventListener('pointermove', onPointerMove);
 
+    /* ---------- اللقطة السينمائية ----------
+       أول ما تقف عند ماكينة: سبوت بيتسلّط عليها، الضباب بيقرب فيغيّم المطبخ
+       ورا الماكينة، والإضاءة المحيطة بتخفت شوية عشان الماكينة تبقى البطل. */
+    const spot = new THREE.SpotLight(0xFFF0D8, 0, 9, 0.62, 0.62, 1.4);
+    spot.position.set(0, 3.2, 0);
+    scene.add(spot);
+    scene.add(spot.target);
+    const FOG0 = { near: scene.fog.near, far: scene.fog.far };
+    let hemiBase = lights.hemi.intensity, ambBase = lights.amb.intensity;
+    let cineMix = 0, holdWide = false;
+    function recaptureLightBase() {
+      hemiBase = lights.hemi.intensity / Math.max(0.001, 1 - 0.45 * cineMix);
+      ambBase = lights.amb.intensity / Math.max(0.001, 1 - 0.5 * cineMix);
+    }
+    function cinematic(dt, st) {
+      const want = st ? 1 : 0;
+      cineMix += (want - cineMix) * Math.min(1, dt * 2.4);
+      if (cineMix < 0.002 && !st) cineMix = 0;
+      if (st) {
+        const p = st.obj.position;
+        spot.position.set(p.x + st.view.x * 0.35, p.y + 1.9, p.z + st.view.z * 0.3);
+        spot.target.position.copy(p);
+        spot.target.updateMatrixWorld();
+      }
+      spot.intensity = cineMix * 22;
+      scene.fog.near = FOG0.near + (7 - FOG0.near) * cineMix;
+      scene.fog.far = FOG0.far + (23 - FOG0.far) * cineMix;
+      lights.hemi.intensity = hemiBase * (1 - 0.45 * cineMix);
+      lights.amb.intensity = ambBase * (1 - 0.5 * cineMix);
+    }
+
     /* ---------- الحركة والاصطدام ---------- */
     const goal = chef.root.position.clone();
     const keys = Object.create(null);
@@ -169,27 +200,34 @@
       return true;
     }
 
-    /* أثر الخطوة على الكوباية: صبّ، تلج، تسخين، أو تقليب */
-    function serve(stationId, step, value) {
-      const f = step && step.fx;
+    /* أثر تشغيل الماكينة على الكوباية — الكميات واللون والحرارة بتيجي من
+       القيم اللي المستخدم ظبّطها في لوحة التحكّم. */
+    function serve(stationId, spec, values) {
+      const f = spec && spec.fx;
       if (!f) return false;
-      const v = typeof value === 'number' ? value : 0;
+      values = values || {};
+      const num = k => (typeof values[k] === 'number' ? values[k] : 0);
+
+      let amount = f.amount != null ? f.amount : num(f.amountFrom) * (f.per || 0.02);
+      let temp = f.tempFrom ? num(f.tempFrom) + (f.tempOffset || 0) : f.temp;
+      let color = f.color;
+      if (f.colorFrom && spec.controls) {
+        const ctl = spec.controls.filter(c => c.k === f.colorFrom)[0];
+        const opt = ctl && ctl.options ? ctl.options.filter(o => o.v === values[f.colorFrom])[0] : null;
+        if (opt && opt.col != null) color = opt.col;
+      }
+
       if (f.act === 'pour') {
-        drink.pour({
-          amount: f.amount != null ? f.amount : v * (f.per || 0.02),
-          color: f.color, tempC: f.temp
-        });
+        drink.pour({ amount: amount, color: color, tempC: temp });
       } else if (f.act === 'ice') {
-        drink.addIce(v || 6);
+        drink.addIce(f.countFrom ? num(f.countFrom) : 6);
         if (RAW.sfx) RAW.sfx.clink();
       } else if (f.act === 'heat') {
-        drink.state.temp = Math.max(drink.state.temp, v || 90);
+        drink.state.temp = Math.max(drink.state.temp, temp || 90);
         drink.stir();
-        if (f.color != null) drink.pour({ amount: 0.01, color: f.color });
-        if (RAW.sfx) RAW.sfx.machine('milk');
       } else if (f.act === 'stir') {
         drink.stir();
-        if (f.color != null) drink.pour({ amount: 0.01, color: f.color });
+        if (color != null) drink.pour({ amount: 0.01, color: color });
         if (RAW.sfx) RAW.sfx.stir();
       }
       return true;
@@ -231,7 +269,12 @@
     function request(id) {
       const s = stations[id];
       if (!s) return false;
-      if (current === s) { if (o.onArrive) o.onArrive(pub(s)); return true; }
+      if (current === s) {
+        holdWide = false;
+        rig.setFocus(s);
+        if (o.onArrive) o.onArrive(pub(s));
+        return true;
+      }
       goal.set(s.at.x, 0, s.at.z);
       pending = id;
       return true;
@@ -306,6 +349,7 @@
       const near = nearestStation();
       if (near !== current) {
         current = near;
+        holdWide = false;                         // خرجت من نطاق المحطة → التركيز يرجع طبيعي
         rig.setFocus(near);                       // اللقطة القريبة بس لما يوصل
         if (o.onStation) o.onStation(pub(near));
         if (near && pending === near.id) {
@@ -314,7 +358,10 @@
         }
       }
 
+      const shot = holdWide ? null : current;
+      cinematic(dt, shot);
       rig.update(dt, p);
+      if (o.onTick) o.onTick(dt);           // العدّاد بتاع لوحة الماكينة بيمشي مع الفريمات
       renderer.render(scene, cam);
     }
     tick();
@@ -365,11 +412,15 @@
       },
       /** كوباية جديدة */
       newCup() { drink.reset(); cupTo(null); return true; },
+      /** يرجّع الكاميرا للقطة الواسعة وهي واقفة مكانها (بعد ما تخلص شغلها) */
+      unfocus() { holdWide = true; rig.setFocus(null); return true; },
+      /** يرجّع التركيز على المحطة اللي هي عندها */
+      refocus() { holdWide = false; rig.setFocus(current); return !!current; },
       /** نورة: تعبير مؤقت */
       express(kind, secs) { chef.express(kind, secs); },
       /** الإضاءة حسب الوقت: 'morning' · 'noon' · 'sunset' · 'night' */
-      setTime(id) { const p = lights.setTime(id); atmos.setShaft(p.shaft); atmos.refresh(); return p.name; },
-      nextTime() { const p = lights.nextTime(); atmos.setShaft(p.shaft); atmos.refresh(); return p.name; },
+      setTime(id) { const p = lights.setTime(id); recaptureLightBase(); atmos.setShaft(p.shaft); atmos.refresh(); return p.name; },
+      nextTime() { const p = lights.nextTime(); recaptureLightBase(); atmos.setShaft(p.shaft); atmos.refresh(); return p.name; },
       timeName() { return lights.presets[lights.current].name; },
       /** أرقام الأداء: عدد الـdraw calls والمثلثات والمجسمات */
       stats() {
