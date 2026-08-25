@@ -23,6 +23,42 @@
       } catch (e) { broken = true; return null; }
     }
 
+    /* الصوت المكاني: كل ماكينة صوتها جاي من مكانها في الأوضة.
+       بنوصّل على panner لو اتبعت نقطة، وإلا على الماستر عادي. */
+    function sink(at) {
+      const c = ensure(); if (!c) return null;
+      if (!at) return master;
+      try {
+        const p = c.createPanner();
+        p.panningModel = 'HRTF';
+        p.distanceModel = 'inverse';
+        p.refDistance = 2.2; p.maxDistance = 26; p.rolloffFactor = 1.1;
+        if (p.positionX) {
+          p.positionX.value = at.x; p.positionY.value = at.y; p.positionZ.value = at.z;
+        } else p.setPosition(at.x, at.y, at.z);
+        p.connect(master);
+        return p;
+      } catch (e) { return master; }
+    }
+
+    /** بيتنده كل فريم: أذن المستمع بتقعد مكان الكاميرا */
+    function listener(cam) {
+      if (!ctx || !on || !cam) return;
+      const l = ctx.listener;
+      try {
+        if (l.positionX) {
+          l.positionX.value = cam.position.x;
+          l.positionY.value = cam.position.y;
+          l.positionZ.value = cam.position.z;
+          const d = cam.getWorldDirection(listener._v || (listener._v = { x: 0, y: 0, z: -1 }));
+          l.forwardX.value = d.x; l.forwardY.value = d.y; l.forwardZ.value = d.z;
+          l.upX.value = 0; l.upY.value = 1; l.upZ.value = 0;
+        } else {
+          l.setPosition(cam.position.x, cam.position.y, cam.position.z);
+        }
+      } catch (e) {}
+    }
+
     function blip(freq, dur, type, vol) {
       const c = ensure(); if (!c) return;
       const o = c.createOscillator(), g = c.createGain();
@@ -36,7 +72,7 @@
     }
 
     // ضجيج مفلتر — أساس صوت المكن والصب والبخار
-    function noise(dur, freq, q, vol, type) {
+    function noise(dur, freq, q, vol, type, at) {
       const c = ensure(); if (!c) return;
       const len = Math.max(1, Math.floor(c.sampleRate * dur));
       const buf = c.createBuffer(1, len, c.sampleRate);
@@ -46,7 +82,7 @@
       const f = c.createBiquadFilter();
       f.type = type || 'bandpass'; f.frequency.value = freq; f.Q.value = q || 1;
       const g = c.createGain(); g.gain.value = vol == null ? 0.12 : vol;
-      src.connect(f); f.connect(g); g.connect(master);
+      src.connect(f); f.connect(g); g.connect(sink(at) || master);
       src.start();
     }
 
@@ -124,20 +160,21 @@
         if (!on) { ambience(false); if (ctx) { try { ctx.suspend(); } catch (e) {} } }
         else if (ctx) { try { ctx.resume(); } catch (e) {} }
       },
-      pour, clink, stir, ambience,
+      pour, clink, stir, ambience, listener,
       click()   { blip(520, 0.06, 'triangle', 0.1); },
       confirm() { blip(660, 0.09, 'sine', 0.12); setTimeout(() => blip(880, 0.12, 'sine', 0.1), 70); },
       error()   { blip(220, 0.16, 'sawtooth', 0.09); },
       step()    { noise(0.09, 260, 0.9, 0.05, 'lowpass'); },
-      machine(id) {
+      machine(id, at) {
         switch (id) {
-          case 'espresso': noise(1.1, 900, 1.4, 0.1); blip(140, 0.5, 'sawtooth', 0.05); break;
-          case 'grinder':  noise(1.0, 420, 0.7, 0.14, 'lowpass'); break;
+          case 'espresso': noise(1.1, 900, 1.4, 0.1, 'bandpass', at); blip(140, 0.5, 'sawtooth', 0.05); break;
+          case 'grinder':  noise(1.0, 420, 0.7, 0.14, 'lowpass', at); break;
           case 'syrup':    blip(380, 0.12, 'square', 0.07); setTimeout(() => blip(300, 0.14, 'square', 0.06), 130); break;
-          case 'milk':     noise(1.2, 2400, 2.2, 0.09); break;
-          case 'ice':      for (let i = 0; i < 5; i++) setTimeout(() => noise(0.1, 2600 + Math.random() * 1200, 3, 0.07), i * 90); break;
-          case 'tea':      noise(0.9, 700, 1.1, 0.07); break;
-          default:         noise(1.0, 520, 1.0, 0.08); break;
+          case 'milk':     noise(1.2, 2400, 2.2, 0.09, 'bandpass', at); break;
+          case 'ice':      for (let i = 0; i < 5; i++) setTimeout(() => noise(0.1, 2600 + Math.random() * 1200, 3, 0.07, 'bandpass', at), i * 90); break;
+          case 'tea':      noise(0.9, 700, 1.1, 0.07, 'bandpass', at); break;
+          case 'brew':     noise(1.2, 320, 0.8, 0.09, 'lowpass', at); break;
+          default:         noise(1.0, 520, 1.0, 0.08, 'bandpass', at); break;
         }
       }
     };

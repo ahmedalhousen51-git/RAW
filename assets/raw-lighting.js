@@ -30,8 +30,8 @@
     fill.position.set(-8, 5.5, 6);
     scene.add(fill);
 
-    // Rim ذهبي خفيف من ورا يفصل الشخصية والمعدات عن الخلفية
-    const rim = new THREE.DirectionalLight(0xFFC98A, 0.5);
+    // Rim زمردي خفيف من ورا: بيفصل الشخصية عن الخلفية وبيدّي المكان هويته
+    const rim = new THREE.DirectionalLight(0x2FBFA4, 0.5);
     rim.position.set(-2, 5.5, -9);
     scene.add(rim);
 

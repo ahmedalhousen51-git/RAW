@@ -14,7 +14,10 @@
   --burgundy-2: #8A3350;
   --r: 14px;
   --shadow: 0 18px 44px rgba(60, 42, 26, .22);
-  --font: 'Cairo', 'Segoe UI', Tahoma, system-ui, sans-serif;
+  --font: 'IBM Plex Sans Arabic', 'Noto Sans Arabic', 'Segoe UI', Tahoma, system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+  --emerald-kora: #149B83;
+  --copper: #C56A38;
 }
 
 * { box-sizing: border-box; }
@@ -175,7 +178,7 @@ button { font-family: inherit; }
   background: rgba(6, 12, 14, .72); border: 1px solid rgba(120, 220, 235, .16);
   border-radius: 12px; box-shadow: inset 0 0 22px rgba(0, 190, 220, .07); }
 .raw-lcd-cell { flex: 1; display: flex; align-items: baseline; justify-content: center; gap: 4px;
-  font-family: 'Outfit', ui-monospace, monospace; }
+  font-family: var(--mono); }
 .raw-lcd-cell .ic { font-size: .8rem; opacity: .9; }
 .raw-lcd-cell .val { font-size: 1.02rem; font-weight: 800; color: #8FE9FF;
   text-shadow: 0 0 10px rgba(90, 210, 255, .45); }
@@ -204,7 +207,7 @@ button { font-family: inherit; }
 .raw-ctrls { display: flex; flex-direction: column; gap: 8px; }
 .raw-ctrl .row { display: flex; align-items: center; justify-content: space-between;
   font-size: .76rem; font-weight: 700; margin-bottom: 6px; }
-.raw-ctrl .row output { font-family: 'Outfit', ui-monospace, monospace; color: #8FE9FF; }
+.raw-ctrl .row output { font-family: var(--mono); color: #8FE9FF; }
 .raw-ctrl .row output.off { color: #FFB4A2; }
 .raw-ctrl .hint { font-size: .66rem; opacity: .55; margin-top: 5px; }
 .raw-track { position: relative; height: 22px; display: flex; align-items: center; }
@@ -247,8 +250,8 @@ button { font-family: inherit; }
 .raw-prog i { display: block; height: 100%; width: 0%; border-radius: 999px;
   background: linear-gradient(90deg, #E8C99A, #F5B942); box-shadow: 0 0 12px rgba(245, 185, 66, .5);
   transition: width .1s linear; }
-.raw-prog span { position: absolute; inset-inline-end: 0; top: 8px; font-size: .66rem;
-  font-family: 'Outfit', ui-monospace, monospace; color: #F5B942; }
+.raw-prog span { position: absolute; inset-inline-end: 0; top: 8px; font-size: .68rem;
+  font-family: var(--mono); font-weight: 600; color: #F5B942; }
 .raw-note { min-height: 16px; margin-top: 12px; font-size: .72rem; font-weight: 700; text-align: center; }
 .raw-note.good { color: #A8F0C2; }
 .raw-note.warn { color: #F5D08A; }
@@ -299,6 +302,70 @@ button { font-family: inherit; }
   .raw-hud { bottom: 10px; padding: 11px 12px 13px; max-height: calc(100% - 70px); }
   .raw-lcd-cell .val { font-size: .9rem; }
   .raw-nora { display: none; }
+}
+
+
+/* زرار الإيقاف اليدوي + علامة الهدف على الشريط */
+.raw-run.stop { background: linear-gradient(120deg, #B3352F, #E0663C); animation: rawpulse 1.1s ease infinite; }
+.raw-prog i.near { background: linear-gradient(90deg, #4ADE80, #A8F0C2); box-shadow: 0 0 14px rgba(74, 222, 128, .55); }
+.raw-ctrl .live-hint { color: #F5D08A; opacity: .85; }
+
+/* شريط الكوباية + زرار التقديم */
+.raw-cup button {
+  pointer-events: auto; margin-inline-start: 6px; padding: 4px 11px; border-radius: 999px;
+  border: 1px solid rgba(232, 201, 154, .5); background: rgba(232, 201, 154, .16);
+  color: #F7E7C8; font-family: inherit; font-size: .7rem; font-weight: 700; cursor: pointer;
+  transition: background .15s ease, transform .12s ease;
+}
+.raw-cup button:hover { background: rgba(232, 201, 154, .3); transform: translateY(-1px); }
+.raw-cup button[hidden] { display: none; }
+
+/* شارة المستوى في لوحة المخزون */
+.raw-rank {
+  margin-top: 6px; padding: 5px 8px; border-radius: 9px; text-align: center;
+  background: rgba(20, 155, 131, .12); border: 1px solid rgba(20, 155, 131, .35);
+  color: #14684F; font-size: .68rem; font-weight: 700;
+}
+
+/* كارت مراجعة المشروب */
+.raw-serve {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -46%) scale(.97);
+  width: min(360px, calc(100% - 32px));
+  background: linear-gradient(180deg, rgba(26, 20, 17, .93), rgba(12, 9, 8, .95));
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 236, 205, .18); border-radius: 20px;
+  box-shadow: 0 30px 70px rgba(0, 0, 0, .55);
+  color: #F3EADC; padding: 16px 18px 18px; z-index: 12;
+  opacity: 0; pointer-events: none; transition: opacity .25s ease, transform .25s ease;
+}
+.raw-serve.on { opacity: 1; pointer-events: auto; transform: translate(-50%, -50%) scale(1); }
+.raw-serve header { display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid rgba(255,236,205,.14); padding-bottom: 9px; }
+.raw-serve header b { font-size: .9rem; }
+.raw-serve .score { text-align: center; margin: 14px 0 10px; }
+.raw-serve .score b { display: block; font-family: var(--mono); font-size: 2.6rem; font-weight: 700;
+  line-height: 1; color: #8FE9FF; text-shadow: 0 0 22px rgba(90, 210, 255, .4); }
+.raw-serve .score b.good { color: #8CF0B4; text-shadow: 0 0 22px rgba(74, 222, 128, .4); }
+.raw-serve .score b.warn { color: #F5D08A; text-shadow: 0 0 22px rgba(245, 185, 66, .35); }
+.raw-serve .score b.bad { color: #FFB4A2; text-shadow: 0 0 22px rgba(240, 86, 63, .35); }
+.raw-serve .score small { font-size: .68rem; opacity: .6; }
+.raw-serve .lines { list-style: none; margin: 0 0 10px; padding: 0;
+  display: flex; flex-direction: column; gap: 4px; }
+.raw-serve .lines li { font-size: .73rem; opacity: .82; padding-inline-start: 14px; position: relative; }
+.raw-serve .lines li::before { content: '·'; position: absolute; inset-inline-start: 4px; color: var(--copper); }
+.raw-serve .review { margin: 0 0 12px; font-size: .78rem; font-weight: 600; line-height: 1.7;
+  color: #E8C99A; }
+.raw-serve .name { display: block; font-size: .7rem; opacity: .75; margin-bottom: 12px; }
+.raw-serve .name input {
+  display: block; width: 100%; margin-top: 5px; padding: 9px 11px;
+  border-radius: 10px; border: 1px solid rgba(255,236,205,.2);
+  background: rgba(255,255,255,.05); color: #F3EADC; font-family: inherit; font-size: .8rem;
+}
+.raw-serve .name input:focus { outline: none; border-color: var(--emerald-kora); }
+
+@media (prefers-reduced-motion: reduce) {
+  .raw-hud, .raw-serve, .raw-toast, .raw-nora { transition-duration: .01ms !important; }
+  .raw-leds .led.busy.on, .raw-run.stop, .raw-care.due { animation: none !important; }
 }
 
 /* ---------- تنبيه الوضع الطولي على الموبايل ---------- */

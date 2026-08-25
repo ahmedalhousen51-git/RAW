@@ -103,6 +103,23 @@
       headG.add(b); blush.push(b);
     });
 
+    // طاقية الشيف
+    const capBand = cyl(0.142, 0.142, 0.045, 20, M(0xF7F3EA, 0.7));
+    capBand.position.y = 0.208; headG.add(capBand);
+    const capTop = new THREE.Mesh(new THREE.SphereGeometry(0.15, 18, 12), M(0xFBF8F1, 0.75));
+    capTop.scale.set(1, 0.72, 1);
+    capTop.position.y = 0.27; headG.add(capTop);
+    const capPuff = new THREE.Mesh(new THREE.SphereGeometry(0.055, 12, 10), M(0xFBF8F1, 0.75));
+    capPuff.position.set(0.03, 0.34, -0.02); headG.add(capPuff);
+
+    // وشاح أخضر زمردي حوالين الرقبة
+    const scarf = new THREE.Mesh(new THREE.TorusGeometry(0.085, 0.028, 8, 18), M(0x149B83, 0.75));
+    scarf.rotation.x = Math.PI / 2;
+    scarf.position.y = 1.44; root.add(scarf);
+    const scarfTail = box(0.07, 0.16, 0.04, M(0x149B83, 0.75));
+    scarfTail.position.set(0.05, 1.35, 0.09);
+    scarfTail.rotation.z = -0.25; root.add(scarfTail);
+
     // فوطة على الكتف — تفصيلة كافيه صغيرة
     const towel = box(0.09, 0.19, 0.05, M(0xE0D6C2, 0.85));
     towel.position.set(-0.19, 1.31, 0.02); towel.rotation.z = 0.2; root.add(towel);

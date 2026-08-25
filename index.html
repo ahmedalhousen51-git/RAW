@@ -7,7 +7,7 @@
 <meta name="description" content="تجربة تفاعلية ثلاثية الأبعاد لمطبخ كافيه RAW: امشي جوه المكان، اقترب من المحطات، وشغّل الماكينات.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600;700&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/raw-ui.css">
 </head>
 <body>
@@ -23,6 +23,7 @@
   <aside class="raw-stock">
     <h3>المخزون</h3>
     <div id="stock"></div>
+    <div class="raw-rank" id="rank" title="مستواك وإتقانك">—</div>
     <button type="button" class="raw-sound" id="time" title="غيّر وقت اليوم">الوقت: —</button>
     <button type="button" class="raw-sound" id="sound" aria-pressed="true" title="الصوت شغّال">الصوت: شغّال</button>
   </aside>
@@ -37,6 +38,7 @@
 
   <div class="raw-cup" id="cup" hidden>
     <span id="cupTemp">—</span><i></i><span id="cupFill">—</span><i></i><span id="cupIce">—</span>
+    <button type="button" id="serveBtn" hidden>قدّم المشروب</button>
   </div>
 
   <div class="raw-tag" id="tag"></div>
@@ -78,10 +80,12 @@
 <script src="assets/raw-drink.js"></script>
 <script src="assets/raw-atmos.js"></script>
 <script src="assets/raw-camera.js"></script>
+<script src="assets/raw-progress.js"></script>
 <script src="assets/raw-consoles.js"></script>
 <script src="assets/raw-sfx.js"></script>
 <script src="assets/raw-ui.js"></script>
 <script src="assets/raw-console-ui.js"></script>
+<script src="assets/raw-serve.js"></script>
 <script src="assets/raw-kitchen.js"></script>
 <script>
 (function () {
@@ -111,6 +115,22 @@
 
   /* لوحة تحكّم الماكينة: بتشغّل الماكينة في المشهد، وبتصبّ في الكوباية،
      وبتخلّي نورة تعلّق على النتيجة. */
+  const serveCard = RAW.serve(wrap, {
+    onServe(total, name, badges) {
+      if (api) { api.newCup(); api.express(total >= 78 ? 'happy' : 'oops', 2.2); }
+      hud.toast('اتقدّم! درجة الجودة ' + total, total >= 78 ? 'good' : 'warn');
+      hud.say(name ? ('«' + name + '» — ' + total + ' من ١٠٠') : ('المشروب اتقدّم بدرجة ' + total),
+              total >= 78 ? 'happy' : 'calm');
+      badges.forEach((b, i) => setTimeout(() => hud.toast('🏅 إنجاز: ' + b.name, 'good'), 600 + i * 600));
+      paintRank();
+    }
+  });
+
+  function paintRank() {
+    const p = RAW.progress;
+    $('rank').textContent = p.level.name + ' · إتقان ' + p.mastery() + '٪';
+  }
+
   const hud = RAW.console(els, {
     onRun(station, spec) {
       if (!api) return;
@@ -121,6 +141,8 @@
     onDone(station, spec, values, rating) {
       if (!api) return;
       api.serve(station.id, spec, values);       // اللي اتعمل بينزل في الكوباية
+      serveCard.add(station.id, rating);         // بتتحسب في درجة المشروب النهائي
+      paintRank();
       if (rating === 'bad') { RAW.sfx.error(); api.express('oops', 2); }
       else { RAW.sfx.confirm(); api.express('happy', 2.4); }
     },
@@ -143,6 +165,7 @@
   });
 
   window.RAWHud = hud;                     // للتشخيص ولربط صفحات تانية
+  window.RAWServe = serveCard;
 
   // زرار الصوت بيغيّر نصّه وبيشغّل/يقفل همهمة المكان
   els.sound.addEventListener('click', () => {
@@ -199,7 +222,21 @@
       $('cupTemp').textContent = d.temp + '°م';
       $('cupFill').textContent = Math.round(d.level * 100) + '%';
       $('cupIce').textContent = d.ice ? d.ice + ' تلج' : 'من غير تلج';
+      // التقديم بيتفتح لما يبقى في الكوباية حاجة تستاهل
+      $('serveBtn').hidden = !(d.level >= 0.15 && serveCard.count() > 0);
     }, 500);
+
+    paintRank();
+    // نورة بترحّب حسب تاريخك معاها
+    els.nora.classList.add('on');
+    els.noraText.textContent = RAW.progress.greeting();
+    setTimeout(() => { if (!hud.isOpen() && !serveCard.isOpen) els.nora.classList.remove('on'); }, 6000);
+
+    $('serveBtn').addEventListener('click', () => {
+      RAW.sfx.click();
+      els.nora.classList.add('on');
+      serveCard.show(a.drink());
+    });
 
     // أول تفاعل من المستخدم هو اللي بيسمح بتشغيل الصوت في المتصفح
     addEventListener('pointerdown', () => RAW.sfx.ambience(RAW.sfx.on), { once: true });

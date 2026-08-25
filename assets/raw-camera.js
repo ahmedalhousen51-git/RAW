@@ -70,13 +70,48 @@
     }
     function onWheel(e) {
       e.preventDefault();
-      dist = Math.max(LIMIT.distMin, Math.min(LIMIT.distMax, dist + e.deltaY * 0.006));
+      zoom(e.deltaY * 0.006);
+    }
+    function zoom(d) {
+      dist = Math.max(LIMIT.distMin, Math.min(LIMIT.distMax, dist + d));
+    }
+
+    /* قرصة بصباعين على اللمس = تقريب وتبعيد */
+    const touches = {};
+    let pinch0 = 0;
+    function onTouchDown(e) {
+      if (e.pointerType !== 'touch') return;
+      touches[e.pointerId] = { x: e.clientX, y: e.clientY };
+      const ids = Object.keys(touches);
+      if (ids.length === 2) pinch0 = pinchSpread(ids);
+    }
+    function onTouchMove(e) {
+      if (e.pointerType !== 'touch' || !touches[e.pointerId]) return;
+      touches[e.pointerId] = { x: e.clientX, y: e.clientY };
+      const ids = Object.keys(touches);
+      if (ids.length !== 2) return;
+      const d = pinchSpread(ids);
+      if (pinch0) zoom((pinch0 - d) * 0.02);
+      pinch0 = d;
+      dragged = true;                       // قرصة مش دوسة
+    }
+    function onTouchUp(e) {
+      delete touches[e.pointerId];
+      if (Object.keys(touches).length < 2) pinch0 = 0;
+    }
+    function pinchSpread(ids) {
+      const a = touches[ids[0]], b = touches[ids[1]];
+      return Math.hypot(a.x - b.x, a.y - b.y);
     }
     dom.addEventListener('pointerdown', onDown);
     dom.addEventListener('pointermove', onMove);
     dom.addEventListener('pointerup', onUp);
     dom.addEventListener('pointercancel', onUp);
     dom.addEventListener('wheel', onWheel, { passive: false });
+    dom.addEventListener('pointerdown', onTouchDown);
+    dom.addEventListener('pointermove', onTouchMove);
+    dom.addEventListener('pointerup', onTouchUp);
+    dom.addEventListener('pointercancel', onTouchUp);
 
     /* ---------- الحالة ---------- */
     /* بيتنده من الـresize: بيرجّع زاوية الرؤية المناسبة للنسبة الجديدة */
@@ -101,7 +136,8 @@
       if (focus) {
         // لقطة قريبة: قدّام المحطة، بتبص على قلبها، مع دخول بطيء (push-in)
         breath += dt;
-        const push = 1 - Math.min(0.06, breath * 0.02);
+        // الدخول البطيء بيتلغي في وضع الحركة المخفّضة
+        const push = RAW.reduceMotion ? 1 : 1 - Math.min(0.06, breath * 0.02);
         wantTarget.copy(focus.obj.position).add(new THREE.Vector3(0, -0.34, 0));
         wantPos.copy(focus.obj.position).addScaledVector(focus.view, push);
       } else {
@@ -119,7 +155,7 @@
       cam.position.z = Math.max(-5.4, Math.min(15.5, cam.position.z));
       cam.lookAt(target);
       // Dutch angle: ميلة بسيطة ناحية العكس من زاوية اللقطة — دراما من غير دوخة
-      const wantRoll = focus ? (focus.view.x >= 0 ? -0.042 : 0.042) : 0;
+      const wantRoll = (focus && !RAW.reduceMotion) ? (focus.view.x >= 0 ? -0.042 : 0.042) : 0;
       roll += (wantRoll - roll) * Math.min(1, dt * 2.2);
       cam.rotateZ(roll);
     }
@@ -130,6 +166,10 @@
       dom.removeEventListener('pointerup', onUp);
       dom.removeEventListener('pointercancel', onUp);
       dom.removeEventListener('wheel', onWheel);
+      dom.removeEventListener('pointerdown', onTouchDown);
+      dom.removeEventListener('pointermove', onTouchMove);
+      dom.removeEventListener('pointerup', onTouchUp);
+      dom.removeEventListener('pointercancel', onTouchUp);
     }
 
     return { setFocus, isFocused, update, dispose, fit, target,

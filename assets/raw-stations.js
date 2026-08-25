@@ -62,7 +62,7 @@
     const espScrTxt = decal('92°C', 0.17, 0.06, { fg: '#BFE6FF', size: 74 });
     espScrTxt.position.set(0.62, 0.42, 0.325); esp.add(espScrTxt);
     // رأسين تحضير + مقابض سودة + فناجين تحتهم
-    [-0.52, 0.18].forEach(dx => {
+    [-0.62, 0.0, 0.62].forEach(dx => {
       const group = box(0.3, 0.2, 0.3, M(C.steelDark, 0.35, 0.7));
       group.position.set(dx, 0.13, 0.3); esp.add(group);
       const pf = cyl(0.11, 0.11, 0.07, 16, M(C.steelDark, 0.35, 0.7));

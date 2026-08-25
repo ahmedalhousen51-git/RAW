@@ -120,7 +120,10 @@
       /* زرار التشغيل + شريط التقدّم */
       const go = el('button', 'raw-run', spec.action.label);
       go.type = 'button';
-      go.addEventListener('click', start);
+      go.addEventListener('click', () => {
+        if (run && run.manual) stopManual();
+        else start();
+      });
       els.hud.appendChild(go);
       els.hud.appendChild(el('div', 'raw-prog', '<i data-prog></i><span data-count></span>'));
       els.hud.appendChild(el('div', 'raw-note', ''));
@@ -141,9 +144,11 @@
       track.querySelector('.ok').style.width = (okTo - okFrom) + '%';
       const inp = document.createElement('input');
       inp.type = 'range';
+      inp.dataset.k = c.k;
       inp.min = c.min; inp.max = c.max; inp.step = c.step;
       inp.value = m.values[c.k];
       inp.addEventListener('input', () => {
+        // أثناء التشغيل الشريط بيتقفل — إلا لو ده الشريط اللي الماوس بيحرّكه
         if (run) { inp.value = m.values[c.k]; return; }
         m.values[c.k] = parseFloat(inp.value);
         paint();
@@ -152,6 +157,7 @@
       inp.addEventListener('change', press);
       track.appendChild(inp);
       wrap.appendChild(track);
+      if (c.liveHint) wrap.appendChild(el('div', 'hint live-hint', c.liveHint));
       return wrap;
     }
 
@@ -211,9 +217,10 @@
         const node = els.hud.querySelector('[data-r="' + r.k + '"]');
         if (!node) return;
         let v;
-        if (r.counter) v = m.runs;
+        if (run && run.live === r.k) v = run.liveShown;
+        else if (r.counter) v = m.runs;
         else if (r.k === 'ml' && spec.controls.some(c => c.k === 'pumps')) {
-          v = (m.values.pumps || 0) * 7;                       // كل ضخة ٧ مل
+          v = (m.values.pumps || 0) * (spec.mlPerPump || 5);   // كل ضخة ٥ مل بالظبط
         } else v = m.values[r.k];
         if (typeof v === 'number') node.textContent = v.toFixed(r.digits);
         else node.textContent = v == null ? '—' : String(v);
@@ -237,6 +244,8 @@
             b.classList.toggle('on', b.dataset.v === val);
           });
         }
+        const inp = els.hud.querySelector('input[data-k="' + c.k + '"]');
+        if (inp && String(inp.value) !== String(val)) inp.value = val;
         if (c.type === 'counter') {
           const dots = els.hud.querySelectorAll('.raw-counter .dots i');
           for (let i = 0; i < dots.length; i++) {
@@ -264,8 +273,11 @@
       // زرار التشغيل
       const go = els.hud.querySelector('.raw-run');
       if (go) {
-        go.disabled = !!run;
-        go.textContent = run ? (spec.action.busy || 'شغّالة…') : spec.action.label;
+        const manualRunning = run && run.manual;
+        go.disabled = !!run && !manualRunning;      // زرار الإيقاف بيفضل شغّال
+        go.classList.toggle('stop', !!manualRunning);
+        go.textContent = manualRunning ? spec.action.stop
+          : (run ? (spec.action.busy || 'شغّالة…') : spec.action.label);
       }
     }
 
@@ -291,9 +303,21 @@
         return;
       }
       press();
-      const secsSpec = spec.action.secs;
-      const shown = typeof secsSpec === 'string' ? (m.values[secsSpec] || 10) : secsSpec;
-      run = { t: 0, dur: Math.max(1.2, shown * TIME_SCALE), shown: shown };
+      const act = spec.action;
+      if (act.manual) {
+        // استخلاص يدوي: العدّاد بيطلع وانت اللي بتوقفه
+        run = { manual: true, t: 0, shown: 0, liveShown: 0, live: act.live, max: act.max || 60 };
+      } else {
+        const secsSpec = act.secs;
+        const shown = typeof secsSpec === 'string' ? (m.values[secsSpec] || 10) : secsSpec;
+        run = { t: 0, dur: Math.max(1.2, shown * TIME_SCALE), shown: shown };
+      }
+      if (act.live && !act.manual) {
+        // تحكّم حيّ بالماوس: الحركة يمين وشمال بتغيّر القيمة طول العملية
+        run.live = act.live;
+        run.inBand = 0; run.total = 0;
+        addEventListener('pointermove', onLiveMove);
+      }
       say(spec.voice.run, 'calm');
       if (h.onRun) h.onRun(station, spec, m.values);
       paint();
@@ -307,30 +331,107 @@
       }
       if (!run) return;
       run.t += dt;
-      const k = Math.min(1, run.t / run.dur);
       const prog = els.hud.querySelector('[data-prog]');
       const count = els.hud.querySelector('[data-count]');
+
+      if (run.manual) {
+        // ثواني الماكينة بتعدّ طالع، والهدف علامة على الشريط
+        run.shown = run.t / TIME_SCALE;
+        run.liveShown = Math.round(run.shown * 10) / 10;
+        const target = spec.action.target || 30;
+        const k = Math.min(1, run.shown / (target * 1.35));
+        if (prog) {
+          prog.style.width = (k * 100) + '%';
+          prog.classList.toggle('near', Math.abs(run.shown - target) <= (spec.action.tol || 2));
+        }
+        if (count) count.textContent = run.liveShown.toFixed(1) + ' ث';
+        paint();
+        if (run.shown >= run.max) stopManual(true);
+        return;
+      }
+
+      if (run.live) {
+        // كام ثانية فضلت جوه المدى المضبوط — ده أساس تقييم الخفق
+        const c = spec.controls.filter(x => x.k === run.live)[0];
+        const v = machine(station.id).values[run.live];
+        run.total += dt;
+        if (c && c.ok && v >= c.ok[0] && v <= c.ok[1]) run.inBand += dt;
+      }
+      const k = Math.min(1, run.t / run.dur);
       if (prog) prog.style.width = (k * 100) + '%';
       if (count) count.textContent = Math.ceil(run.shown * (1 - k)) + ' ث';
       if (k >= 1) finish();
     }
 
+    /* الماوس بيحرّك القيمة الحيّة: يمين = أكبر (الشاشة عربي، فبنعكس المحور) */
+    function onLiveMove(e) {
+      if (!run || !run.live || !spec) return;
+      const c = spec.controls.filter(x => x.k === run.live)[0];
+      if (!c) return;
+      const m = machine(station.id);
+      const k = 1 - Math.max(0, Math.min(1, e.clientX / (window.innerWidth || 1)));
+      const raw = c.min + (c.max - c.min) * k;
+      m.values[c.k] = Math.round(raw / c.step) * c.step;
+      paint();
+    }
+
+    /* إيقاف الاستخلاص اليدوي — الدقة بتتقاس من فرق الثواني عن الهدف */
+    function stopManual(auto) {
+      if (!run || !run.manual) return;
+      const m = machine(station.id);
+      const act = spec.action;
+      m.values[act.live] = Math.round(run.shown * 10) / 10;
+      run.autoStopped = !!auto;
+      if (!auto) press();
+      finish();
+    }
+
     function finish() {
       const m = machine(station.id);
+      const wasRun = run;
       run = null;
+      removeEventListener('pointermove', onLiveMove);
       const prog = els.hud.querySelector('[data-prog]');
       const count = els.hud.querySelector('[data-count]');
       if (prog) prog.style.width = '0%';
       if (count) count.textContent = '';
 
-      // التقييم: كل تحكّم بره مداه بيخصم
+      // التقييم: كل تحكّم بره مداه بيخصم، وكمان دقة التوقيت وجودة الخفق
       const misses = [];
+      const liveKey = wasRun && wasRun.live;
       spec.controls.forEach(c => {
+        if (c.live && liveKey === c.k) return;                 // ده بيتقيّم بالوقت مش بالقيمة
         const v = m.values[c.k];
         if (c.ok && (v < c.ok[0] || v > c.ok[1])) misses.push(v < c.ok[0] ? c.low : c.high);
         else if (c.target != null && v !== c.target) misses.push(v < c.target ? c.low : c.high);
       });
-      const rating = misses.length === 0 ? 'great' : (misses.length === 1 ? 'ok' : 'bad');
+
+      let perfect = false, penalty = 0;      // الأخطاء التقيلة بتتحسب مرتين
+      if (wasRun && wasRun.manual) {
+        const target = spec.action.target || 30;
+        const tol = spec.action.tol || 2;
+        const off = Math.abs(m.values[spec.action.live] - target);
+        if (wasRun.autoStopped) { misses.push('سبت الشوت يجري لحد ما اتحرق!'); penalty += 2; }
+        else if (off > tol * 2) {
+          misses.push(m.values[spec.action.live] < target ? 'زمن الاستخلاص قصير جداً!' : 'استخلاص طويل — الطعم هيمرّ.');
+          penalty += 1;
+        }
+        else if (off > tol) misses.push('الفرق ' + off.toFixed(1) + ' ثانية عن الـ٣٠ — قرّبها أكتر.');
+        else perfect = true;
+      }
+      if (wasRun && wasRun.live && !wasRun.manual) {
+        const share = wasRun.total ? wasRun.inBand / wasRun.total : 0;
+        m.lastShare = Math.round(share * 100);
+        if (share < 0.45) {
+          misses.push('الزاوية كانت بره المضبوط أغلب الوقت (' + m.lastShare + '٪).');
+          penalty += 1;
+        }
+        else if (share < 0.75) misses.push('ثبّت الزاوية أكتر — قعدت ' + m.lastShare + '٪ بس جوه المدى.');
+        else perfect = true;
+      }
+
+      const score = misses.length + penalty;
+      const rating = score === 0 ? 'great' : (score === 1 ? 'ok' : 'bad');
       m.last = rating;
       m.runs++;
       if (spec.gauge) m.water = Math.max(0, m.water - (spec.gauge.drain || 5));
@@ -345,7 +446,13 @@
         note.textContent = misses.length ? misses.join(' · ') : 'كل الأرقام جوه المدى المضبوط.';
         note.className = 'raw-note ' + kind;
       }
+      if (perfect && rating === 'great' && spec.action.perfect) toast(spec.action.perfect, 'good');
+
+      // التقدّم بيتسجّل الأول عشان شارة المستوى تبان محدّثة في نفس اللحظة
+      let got = [];
+      if (RAW.progress) got = RAW.progress.record(station.id, rating);
       if (h.onDone) h.onDone(station, spec, m.values, rating);
+      got.forEach((b, i) => setTimeout(() => toast('🏅 إنجاز: ' + b.name, 'good'), 700 + i * 600));
       paint();
       closeTimer = rating === 'bad' ? 0 : 2.8;      // الرجوع التلقائي بعد نجاح بس
     }
@@ -382,12 +489,17 @@
       build();
       els.hud.classList.add('on');
       if (els.nora) { els.nora.classList.add('on'); }
-      say(spec.voice.hint);
+      // نورة بتغيّر أسلوبها حسب مستواك: المبتدئ بياخد الشرح كامل، المتمكّن لأ
+      const pr = RAW.progress;
+      const mine = pr && pr.stats.byStation[station.id];
+      if (pr && mine && mine.great >= 3) say('عارفة إنك متعوّد عليها — يلا بينا.');
+      else say(spec.voice.hint);
       return true;
     }
     function close() {
       if (!spec) return;
       run = null;
+      removeEventListener('pointermove', onLiveMove);
       closeTimer = 0;
       els.hud.classList.remove('on');
       if (els.nora) els.nora.classList.remove('on');

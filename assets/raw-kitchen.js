@@ -49,6 +49,10 @@
     const W = host.clientWidth || 960, H = host.clientHeight || 600;
 
     /* ---------- الراندرر والمشهد ---------- */
+    // وضع الحركة المخفّضة: بيحترم إعداد النظام — من غير ميلة كاميرا ولا دخول بطيء
+    RAW.reduceMotion = !!(window.matchMedia &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
     const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     renderer.setSize(W, H, false);
@@ -195,7 +199,7 @@
       if (!s) return false;
       if (s.lamp) fx.flash(s.lamp.material, 2.2, 1.0);
       if (s.plume) s.plume.userData.boost = 1;
-      if (RAW.sfx) RAW.sfx.machine(s.id);
+      if (RAW.sfx) RAW.sfx.machine(s.id, s.obj.position);   // الصوت جاي من مكان الماكينة
       if (o.onOperate) o.onOperate(pub(s));
       return true;
     }
@@ -220,7 +224,10 @@
       if (f.act === 'pour') {
         drink.pour({ amount: amount, color: color, tempC: temp });
       } else if (f.act === 'ice') {
-        drink.addIce(f.countFrom ? num(f.countFrom) : 6);
+        // الجرامات بتتحوّل مكعبات: المكعب التجاري ~١٧ جرام
+        const cubes = f.gramsFrom ? Math.round(num(f.gramsFrom) / (f.perCube || 17))
+                                  : (f.countFrom ? num(f.countFrom) : 6);
+        drink.addIce(Math.max(1, cubes));
         if (RAW.sfx) RAW.sfx.clink();
       } else if (f.act === 'heat') {
         drink.state.temp = Math.max(drink.state.temp, temp || 90);
@@ -278,6 +285,27 @@
       goal.set(s.at.x, 0, s.at.z);
       pending = id;
       return true;
+    }
+
+    /* ---------- جودة متكيّفة ----------
+       بنقيس الأداء أول ٤ ثواني: لو الجهاز مش لاحق ٦٠ إطار، بنخفّف الحمل
+       (بكسل ريشيو، خريطة الظل، والغبار) بدل ما التجربة تفضل متقطّعة. */
+    let qFrames = 0, qTime = 0, qDone = false;
+    function quality(dt) {
+      if (qDone) return;
+      qFrames++; qTime += dt;
+      if (qTime < 4) return;
+      qDone = true;
+      const fps = qFrames / qTime;
+      if (fps < 45) {
+        renderer.setPixelRatio(1);
+        lights.key.shadow.mapSize.set(1024, 1024);
+        lights.key.shadow.map && lights.key.shadow.map.dispose();
+        lights.key.shadow.map = null;
+        atmos.setDust(0.25);
+        resize();
+        console.info('RAW: خفّفت الجودة — ' + fps.toFixed(0) + ' إطار/ث');
+      }
     }
 
     /* ---------- الحلقة ---------- */
@@ -358,9 +386,11 @@
         }
       }
 
+      quality(dt);
       const shot = holdWide ? null : current;
       cinematic(dt, shot);
       rig.update(dt, p);
+      if (RAW.sfx && RAW.sfx.listener) RAW.sfx.listener(cam);
       if (o.onTick) o.onTick(dt);           // العدّاد بتاع لوحة الماكينة بيمشي مع الفريمات
       renderer.render(scene, cam);
     }

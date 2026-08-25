@@ -35,18 +35,16 @@
           def: 9.2, ok: [8.8, 9.6], unit: 'bar',
           low: 'الضغط ضعيف — المية هتعدّي بسرعة.',
           high: 'الضغط عالي — الشوت هيبقى مخنوق.' },
-        { k: 'time', type: 'slider', label: 'وقت الاستخلاص', min: 20, max: 38, step: 1,
-          def: 28, ok: [25, 30], unit: 'ث',
-          low: 'زمن الاستخلاص قصير جداً!',
-          high: 'استخلاص طويل — الطعم هيمرّ.' }
       ],
       gauge: { k: 'water', label: 'مستوى الماء', drain: 6 },
-      action: { label: '☕ استخلاص الشوت', busy: 'بتسحب الشوت…', secs: 'time', sound: 'espresso' },
+      // استخلاص يدوي: تبدأ، والعدّاد بيطلع، وانت اللي بتوقفه عند ٣٠ ثانية
+      action: { label: '☕ ابدأ الاستخلاص', stop: '⏹ أوقف الشوت', busy: 'بتسحب الشوت…',
+                manual: true, target: 30, tol: 2, max: 45, live: 'time', sound: 'espresso' },
       fx: { act: 'pour', amount: 0.17, color: 0x2C1A11, tempFrom: 'temp', tempOffset: -4 },
       care: { every: 5, label: '🧼 تنظيف الرأس', note: 'الرأس محتاجة تنظيف بعد ٥ شوتات' },
       voice: {
-        hint: 'ظبّط الحرارة ٩٢ والضغط ٩.٢ يبقى استخلاص نضيف.',
-        run: 'استنى… الكريما بتتكوّن.',
+        hint: 'ظبّط الحرارة ٩٢ والضغط ٩.٢، وأوقف الشوت عند ٣٠ ثانية بالظبط.',
+        run: 'استنى الكريما… وأوقفه على ٣٠.',
         great: 'شوت نضيف! كريما لونها بندقي ظابطة.',
         ok: 'ماشي الحال، بس فيه حاجة محتاجة ظبط.',
         bad: 'الشوت ده مش هينفع — بصّي على اللي بره المدى.'
@@ -105,8 +103,9 @@
       ],
       action: { label: '🔻 اضخّ السيرب', busy: 'بتضخّ…', secs: 2, sound: 'syrup' },
       fx: { act: 'pour', per: 0.035, amountFrom: 'pumps', colorFrom: 'flavor', temp: 24 },
+      mlPerPump: 5,
       voice: {
-        hint: 'اختاري النكهة وادّي ضختين — ده الهدف.',
+        hint: 'اختاري النكهة وادّي ضختين — كل ضخة ٥ مل بالظبط.',
         run: 'السيرب نازل في الكوباية…',
         great: 'ضختين بالظبط — توازن حلو.',
         ok: 'الكمية قريبة من المضبوط.',
@@ -153,13 +152,13 @@
       icon: '🧊', model: 'RAW ICE & BLEND', sub: 'محطة الثلج والخلط',
       power: true,
       readouts: [
-        { k: 'cubes', icon: '🧊', unit: '', digits: 0 },
+        { k: 'grams', icon: '🧊', unit: 'جم', digits: 0 },
         { k: 'speed', icon: '🌀', unit: '', digits: 0 },
         { k: 'blend', icon: '⏱', unit: 's', digits: 0 }
       ],
       controls: [
-        { k: 'cubes', type: 'slider', label: 'عدد المكعبات', min: 2, max: 14, step: 1,
-          def: 7, ok: [5, 9], unit: '',
+        { k: 'grams', type: 'slider', label: 'كمية الثلج', min: 40, max: 300, step: 10,
+          def: 130, ok: [120, 200], unit: 'جم',
           low: 'تلج قليل — المشروب هيسخن بسرعة.',
           high: 'تلج كتير — هيميّع الطعم وهو بيدوب.' },
         { k: 'speed', type: 'slider', label: 'سرعة الخلط', min: 1, max: 10, step: 1,
@@ -172,9 +171,9 @@
           high: 'خلط طويل — القوام هيروح.' }
       ],
       action: { label: '🧊 شغّل الخلاط', busy: 'بتخلط…', secs: 'blend', sound: 'ice' },
-      fx: { act: 'ice', countFrom: 'cubes' },
+      fx: { act: 'ice', gramsFrom: 'grams', perCube: 17 },
       voice: {
-        hint: '٧ مكعبات وسرعة ٦ لمدة ١٨ ثانية.',
+        hint: '١٣٠ جرام تلج وسرعة ٦ لمدة ١٨ ثانية.',
         run: 'الشفرات بتلف — سيبيها تاخد وقتها.',
         great: 'قوام ناعم ومتماسك.',
         ok: 'قريب، بس القوام مش مثالي.',
@@ -196,8 +195,9 @@
           def: 75, ok: [70, 80], unit: '°C',
           low: 'مياه باردة — الماتشا مش هتدوب.',
           high: 'فوق ٨٠ الماتشا بتمرّ.' },
-        { k: 'angle', type: 'slider', label: 'زاوية الخفق', min: 0, max: 90, step: 5,
-          def: 45, ok: [35, 55], unit: '°',
+        { k: 'angle', type: 'slider', label: 'زاوية الخفق', min: 0, max: 90, step: 1,
+          def: 45, ok: [35, 55], unit: '°', live: true,
+          liveHint: 'حرّك الماوس يمين وشمال وانت بتخفق',
           low: 'الزاوية واطية — الخفق مش هيرغّي.',
           high: 'زاوية عالية — هتنطّطي الماتشا بره.' },
         { k: 'whisk', type: 'slider', label: 'مدة الخفق', min: 10, max: 60, step: 5,
@@ -205,7 +205,10 @@
           low: 'خفق قصير — هيفضل تكتّل.',
           high: 'خفق طويل — الرغوة هتقع تاني.' }
       ],
-      action: { label: '🍵 ابدأ الخفق', busy: 'بتخفقي…', secs: 'whisk', sound: 'tea' },
+      // الخفق الحيّ: الماوس بيتحكّم في الزاوية طول العملية، والتقييم على الوقت
+      // اللي فضلت فيه جوه المدى المضبوط
+      action: { label: '🍵 ابدأ الخفق', busy: 'بتخفقي…', secs: 'whisk', sound: 'tea',
+                live: 'angle', perfect: 'رغوة مثالية!' },
       fx: { act: 'pour', amount: 0.3, color: 0x6E8B3D, tempFrom: 'water' },
       voice: {
         hint: 'الزاوية المثالية ٤٥ درجة ومياه ٧٥.',
