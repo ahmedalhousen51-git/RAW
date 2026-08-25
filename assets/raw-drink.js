@@ -71,9 +71,17 @@
     surface.rotation.x = -Math.PI / 2;
     const rest = surfGeo.attributes.position.array.slice();   // النسخة الساكنة
 
+    /* ---------- الرغوة (بتتكوّن من الخفق والرجّ) ---------- */
+    const foamMat = new THREE.MeshPhysicalMaterial({
+      color: 0xFDF6E8, roughness: 0.75, clearcoat: 0.3,
+      transparent: true, opacity: 0
+    });
+    const foam = new THREE.Mesh(new THREE.CylinderGeometry(R * 0.95, R * 0.9, 0.012, 24), foamMat);
+    foam.visible = false;
+
     // كل السائل جوه pivot بيميل لوحده — السلوشينج
     const liquid = new THREE.Group();
-    liquid.add(body, bodyBottom, surface);
+    liquid.add(body, bodyBottom, surface, foam);
     group.add(liquid);
 
     /* ---------- الفقاقيع ---------- */
@@ -126,6 +134,7 @@
       target: 0,
       temp: ROOM_C,
       pouring: 0,          // ثواني فاضلة في الصبّة الحالية
+      foam: 0,             // رغوة من ٠ لـ١
       wobble: 0,           // شدة التموّج
       swirl: 0,            // دوران التقليب/الحمل الحراري
       tilt: new THREE.Vector2(),   // ميل السلوشينج
@@ -167,6 +176,18 @@
       return true;
     }
 
+    /** تفريغ: بتشيل من السائل (صبّ في حاجة تانية أو في المغسلة) */
+    function drain(amount) {
+      const a = Math.max(0, amount || 0.05);
+      st.target = Math.max(0, st.target - a);
+      st.level = Math.max(0, st.level - a);
+      st.wobble = Math.min(1, st.wobble + a * 2);
+      st.foam = Math.max(0, st.foam - a * 1.5);
+      setLevelMeshes();
+      if (st.level <= 0.002) { st.temp = ROOM_C; while (ice.length) liquid.remove(ice.pop()); }
+      return st.level;
+    }
+
     /** تلج: عدد المكعبات */
     function addIce(n) {
       n = Math.max(1, Math.min(12, n | 0));
@@ -206,6 +227,7 @@
       st.level = st.target = 0;
       st.temp = ROOM_C;
       st.swirl = 0;
+      st.foam = 0;
       while (ice.length) liquid.remove(ice.pop());
       setLevelMeshes();
     }
@@ -246,6 +268,15 @@
       } else if (st.level < st.target - 0.001) {
         st.level = Math.min(st.target, st.level + dt * 0.12);
         setLevelMeshes();
+      }
+
+      // الرغوة: بتقعد فوق السطح وبتنزل ببطء لو سبتها
+      st.foam = Math.max(0, Math.min(1, st.foam - dt * 0.035));
+      foamMat.opacity = st.foam * 0.92;
+      foam.visible = st.foam > 0.02 && st.level > 0.02;
+      if (foam.visible) {
+        foam.position.y = st.level * H + 0.004 + st.foam * 0.006;
+        foam.scale.y = 0.4 + st.foam * 2.2;
       }
 
       // لون السائل بيتمزج بالتدريج (لبن على إسبريسو، سيرب، شاي)
@@ -326,7 +357,7 @@
 
     return {
       group, state: st, update,
-      pour, addIce, stir, moveTo, placeAt, reset,
+      pour, drain, addIce, stir, moveTo, placeAt, reset,
       get temp() { return st.temp; },
       get level() { return st.level / MAX; },
       get iceCount() { return ice.length; },

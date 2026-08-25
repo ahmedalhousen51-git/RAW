@@ -161,6 +161,11 @@
         else if (ctx) { try { ctx.resume(); } catch (e) {} }
       },
       pour, clink, stir, ambience, listener,
+      grab()  { blip(300, 0.05, 'triangle', 0.09); noise(0.06, 900, 1.6, 0.05); },
+      drop()  { blip(180, 0.07, 'sine', 0.08); noise(0.09, 500, 1.2, 0.06, 'lowpass'); },
+      shake() { for (let i = 0; i < 8; i++) setTimeout(() => noise(0.07, 1800 + Math.random() * 1400, 2.6, 0.05), i * 130); },
+      water() { noise(0.22, 1400, 0.9, 0.05); },
+      stirTick(power) { noise(0.05, 900 + (power || 0.5) * 1400, 2.2, 0.03 + (power || 0) * 0.03); },
       click()   { blip(520, 0.06, 'triangle', 0.1); },
       confirm() { blip(660, 0.09, 'sine', 0.12); setTimeout(() => blip(880, 0.12, 'sine', 0.1), 70); },
       error()   { blip(220, 0.16, 'sawtooth', 0.09); },

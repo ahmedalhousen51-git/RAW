@@ -41,6 +41,15 @@
     <button type="button" id="serveBtn" hidden>قدّم المشروب</button>
   </div>
 
+  <div class="raw-acts" id="acts">
+    <button type="button" data-a="grab"><b>🖐️</b><span>مسك</span><kbd>G</kbd></button>
+    <button type="button" data-a="pour"><b>💧</b><span>صبّ</span><kbd>F</kbd></button>
+    <button type="button" data-a="stir"><b>🌀</b><span>قلّب</span><kbd>K</kbd></button>
+    <button type="button" data-a="shake"><b>🤝</b><span>رجّ</span><kbd>R</kbd></button>
+    <button type="button" data-a="clean"><b>🧽</b><span>نضّف</span><kbd>C</kbd></button>
+    <div class="raw-meter" id="actMeter" hidden><i></i><em></em></div>
+  </div>
+
   <div class="raw-tag" id="tag"></div>
 
   <section class="raw-hud" id="hud" aria-live="polite"></section>
@@ -77,6 +86,7 @@
 <script src="assets/raw-room.js"></script>
 <script src="assets/raw-stations.js"></script>
 <script src="assets/raw-character.js"></script>
+<script src="assets/raw-hands.js"></script>
 <script src="assets/raw-drink.js"></script>
 <script src="assets/raw-atmos.js"></script>
 <script src="assets/raw-camera.js"></script>
@@ -164,6 +174,65 @@
     onValue() {}
   });
 
+  /* ---------- شريط التفاعل اليدوي ---------- */
+  const acts = {};
+  document.querySelectorAll('#acts button').forEach(b => { acts[b.dataset.a] = b; });
+  const meter = $('actMeter');
+
+  function handAct(name, down) {
+    if (!api) return;
+    const H = api.hands;
+    RAW.sfx.click();
+    if (name === 'grab') { if (down) H.toggle(); return; }
+    if (name === 'stir') { if (down) H.stir(); return; }
+    if (name === 'pour') { down ? H.pourStart() : H.pourStop(); return; }
+    if (name === 'shake') { down ? H.shakeStart() : H.shakeStop(); return; }
+    if (name === 'clean') { down ? H.cleanStart() : H.cleanStop(); return; }
+  }
+  Object.keys(acts).forEach(name => {
+    const b = acts[name];
+    // الصبّ والرجّ والتنظيف بالضغط المستمر، والباقي بدوسة
+    b.addEventListener('pointerdown', e => { e.preventDefault(); handAct(name, true); });
+    b.addEventListener('pointerup', () => handAct(name, false));
+    b.addEventListener('pointerleave', () => handAct(name, false));
+    b.addEventListener('pointercancel', () => handAct(name, false));
+  });
+
+  // بتتحدّث من حلقة المشهد: الأزرار بتتفعّل حسب اللي في إيدها
+  function paintHands() {
+    if (!api) return;
+    const st = api.hands.state();
+    const h = st.held;
+    acts.grab.classList.toggle('on', !!h);
+    acts.grab.querySelector('b').textContent = h ? '📤' : '🖐️';
+    acts.grab.querySelector('span').textContent = h ? 'سيب' : (st.near ? 'مسك ' + st.near.name : 'مسك');
+    acts.grab.disabled = !h && !st.near;
+    acts.pour.disabled = !h || !h.canPour;
+    acts.shake.disabled = !h || !h.canShake;
+    acts.stir.disabled = !h || !h.canStir;
+    acts.stir.classList.toggle('on', st.stirring);
+    acts.clean.disabled = !h || !st.atSink;
+    acts.pour.classList.toggle('on', st.pouring);
+
+    if (st.stirring) {
+      meter.hidden = false;
+      meter.querySelector('i').style.width = Math.round(st.stirPower * 100) + '%';
+      meter.querySelector('em').textContent = st.stirPower > 0.1
+        ? ('قوة التقليب · ' + st.stirTurns.toFixed(1) + ' لفّة')
+        : 'لفّ الماوس بحركة دائرية';
+    } else if (st.cleanProgress > 0) {
+      meter.hidden = false;
+      meter.querySelector('i').style.width = Math.round(st.cleanProgress * 100) + '%';
+      meter.querySelector('em').textContent = 'بتنضّف… ' + Math.round(st.cleanProgress * 100) + '٪';
+    } else if (st.shakeProgress > 0) {
+      meter.hidden = false;
+      meter.querySelector('i').style.width = Math.round(st.shakeProgress * 100) + '%';
+      meter.querySelector('em').textContent = 'بترجّ… ' + Math.round(st.shakeProgress * 100) + '٪';
+    } else {
+      meter.hidden = true;
+    }
+  }
+
   window.RAWHud = hud;                     // للتشخيص ولربط صفحات تانية
   window.RAWServe = serveCard;
 
@@ -205,7 +274,28 @@
       if (hud.busy()) return;
       if (hud.isOpen()) { hud.close(); setFocusMode(false); if (api) { api.cupTo(null); api.unfocus(); } }
     },
-    onTick(dt) { hud.tick(dt); }
+    onTick(dt) { hud.tick(dt); paintHands(); },
+
+    // أحداث الإيدين: نورة بتعلّق، والتقليب بيتحسب في تقييم المشروب
+    onHand(kind, info) {
+      if (kind === 'grab') hud.say('مسكت ' + info.name + '. دوس صبّ أو قلّب.', 'calm');
+      else if (kind === 'spill') hud.toast('في حاجة بتتكب! قرّب الكوباية الأول', 'bad');
+      else if (kind === 'clean-far') hud.toast('قرّب من المغسلة عشان تنضّف', 'warn');
+      else if (kind === 'clean-done') hud.toast('اتنضّفت', 'good');
+      else if (kind === 'stir-stop') {
+        const turns = info.turns || 0;
+        if (turns < 0.5) return;
+        const good = turns >= 2.5;
+        hud.toast(good ? ('تقليب مظبوط · ' + turns.toFixed(1) + ' لفّة') : ('تقليب خفيف · ' + turns.toFixed(1) + ' لفّة'),
+                  good ? 'good' : 'warn');
+        serveCard.add('stir', good ? 'great' : 'ok');
+        if (api) api.express(good ? 'happy' : 'calm', 1.6);
+        paintRank();
+      } else if (kind === 'shake-stop' && info.done) {
+        hud.toast('اترجّت كويس', 'good');
+        serveCard.add('shake', 'great');
+      }
+    }
   }).then(a => {
     api = a;
     if (!a) { giveUp(); return; }

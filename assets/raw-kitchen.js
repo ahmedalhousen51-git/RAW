@@ -88,6 +88,12 @@
     drink.placeAt(CUP_HOME.x, CUP_HOME.y, CUP_HOME.z);
     drink.onPour = info => { if (RAW.sfx) RAW.sfx.pour(info); };
 
+    // الإيدين: مسك الأدوات والصبّ والتقليب — بيتحطّ بعد الكوباية والشخصية
+    const hands = RAW.hands(THREE, scene, mats, fx, {
+      chef: chef, drink: drink,
+      onAction: (kind, info) => { if (o.onHand) o.onHand(kind, info); }
+    });
+
     const atmos = RAW.atmos(THREE, renderer, scene, mats);
     atmos.tune();                                        // قوة الانعكاس لكل خامة
     atmos.setShaft(lights.presets[lights.current].shaft);
@@ -156,9 +162,22 @@
       if (!e.repeat && (e.code === 'KeyE' || e.code === 'Enter' || e.code === 'Space')) {
         if (current && o.onInteract) o.onInteract(pub(current));
       }
+      // التفاعل اليدوي: G مسك/سيب · F صبّ · R رجّ · K تقليب · C تنظيف
+      if (!e.repeat) {
+        if (e.code === 'KeyG') { hands.held ? hands.drop() : hands.grab(); }
+        else if (e.code === 'KeyF') hands.pourStart();
+        else if (e.code === 'KeyR') hands.shakeStart();
+        else if (e.code === 'KeyK') hands.stirToggle();
+        else if (e.code === 'KeyC') hands.cleanStart();
+      }
       if (MOVE_CODES.indexOf(e.code) > -1) e.preventDefault();
     }
-    function onKeyUp(e) { keys[e.code] = false; }
+    function onKeyUp(e) {
+      keys[e.code] = false;
+      if (e.code === 'KeyF') hands.pourStop();
+      else if (e.code === 'KeyR') hands.shakeStop();
+      else if (e.code === 'KeyC') hands.cleanStop();
+    }
     const MOVE_CODES = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
                         'KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space'];
     addEventListener('keydown', onKeyDown, { passive: false });
@@ -263,6 +282,7 @@
 
     /* الكوباية بتروح مع نورة للمحطة اللي فتحتها، وبترجع الجزيرة بعدها */
     function cupTo(id) {
+      if (hands.held && hands.held.id === 'cup') return false;   // في إيدها دلوقتي
       const s = id && stations[id];
       if (!s) { drink.moveTo(CUP_HOME.x, CUP_HOME.z, CUP_HOME.y); return false; }
       // على الرخام قدّام الماكينة شوية، في ناحية نورة
@@ -370,6 +390,7 @@
 
       chef.update(dt, moving, 1);
       fx.update(dt);
+      hands.update(dt);
       drink.update(dt, now);
       atmos.update(dt, now);
 
@@ -446,6 +467,21 @@
       unfocus() { holdWide = true; rig.setFocus(null); return true; },
       /** يرجّع التركيز على المحطة اللي هي عندها */
       refocus() { holdWide = false; rig.setFocus(current); return !!current; },
+      /** التفاعل اليدوي: مسك، سيب، صبّ، رجّ، تقليب، تنظيف */
+      hands: {
+        grab: () => hands.grab(),
+        grabId: id => hands.grabId(id),
+        drop: () => hands.drop(),
+        toggle: () => (hands.held ? hands.drop() : hands.grab()),
+        pourStart: () => hands.pourStart(),
+        pourStop: () => hands.pourStop(),
+        shakeStart: () => hands.shakeStart(),
+        shakeStop: () => hands.shakeStop(),
+        stir: on => hands.stirToggle(on),
+        cleanStart: () => hands.cleanStart(),
+        cleanStop: () => hands.cleanStop(),
+        state: () => hands.state()
+      },
       /** نورة: تعبير مؤقت */
       express(kind, secs) { chef.express(kind, secs); },
       /** الإضاءة حسب الوقت: 'morning' · 'noon' · 'sunset' · 'night' */
@@ -482,6 +518,7 @@
         removeEventListener('resize', resize);
         if (ro) ro.disconnect();
         rig.dispose();
+        hands.dispose();
         renderer.domElement.removeEventListener('pointermove', onPointerMove);
         atmos.dispose();
         scene.traverse(n => {

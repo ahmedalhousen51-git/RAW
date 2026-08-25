@@ -101,6 +101,54 @@ button { font-family: inherit; }
 }
 .raw-help b { color: #E2BE86; font-weight: 700; }
 
+/* ---------- شريط التفاعل اليدوي ---------- */
+.raw-acts {
+  position: absolute; left: 50%; bottom: 78px; transform: translateX(-50%);
+  display: flex; align-items: flex-end; gap: 7px; flex-wrap: wrap; justify-content: center;
+  max-width: calc(100% - 24px);
+}
+.raw-acts button {
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  min-width: 62px; padding: 7px 9px 5px; cursor: pointer;
+  border-radius: 13px; border: 1px solid rgba(255, 236, 205, .18);
+  background: rgba(26, 20, 17, .74); backdrop-filter: blur(9px);
+  color: #F3EADC; font-family: inherit; font-size: .68rem; font-weight: 700;
+  transition: background .15s ease, transform .12s ease, border-color .15s ease, opacity .2s ease;
+}
+.raw-acts button b { font-size: 1.05rem; line-height: 1.1; }
+.raw-acts button kbd {
+  font-family: var(--mono); font-size: .56rem; opacity: .5;
+  border: 1px solid rgba(255,255,255,.2); border-radius: 4px; padding: 0 3px; margin-top: 2px;
+}
+.raw-acts button:hover:not(:disabled) { transform: translateY(-2px); border-color: var(--brass); }
+.raw-acts button:active:not(:disabled) { transform: scale(.94); }
+.raw-acts button:disabled { opacity: .3; cursor: default; }
+.raw-acts button.on {
+  background: rgba(20, 155, 131, .3); border-color: #2FE0B0;
+  box-shadow: 0 0 16px rgba(47, 224, 176, .3);
+}
+.raw-meter {
+  width: 100%; margin-top: 4px; display: flex; flex-direction: column; align-items: center; gap: 3px;
+}
+.raw-meter i {
+  display: block; height: 5px; width: 0%; max-width: 220px; min-width: 6px;
+  border-radius: 999px; background: linear-gradient(90deg, #2FE0B0, #8FE9FF);
+  box-shadow: 0 0 12px rgba(47, 224, 176, .5); transition: width .08s linear;
+}
+.raw-meter::before {
+  content: ''; position: absolute; width: 220px; height: 5px; border-radius: 999px;
+  background: rgba(255,255,255,.12); z-index: -1;
+}
+.raw-meter em {
+  font-style: normal; font-size: .66rem; font-weight: 700; color: #CFE9E2;
+  background: rgba(26, 20, 17, .72); padding: 3px 9px; border-radius: 999px;
+}
+.raw-wrap.paneled .raw-acts { bottom: auto; top: 96px; }
+@media (max-width: 620px) {
+  .raw-acts button { min-width: 52px; font-size: .62rem; padding: 6px 7px 4px; }
+  .raw-acts button kbd { display: none; }
+}
+
 /* ---------- اسم المحطة ---------- */
 .raw-tag {
   position: absolute; left: 50%; bottom: 24px;

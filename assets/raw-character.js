@@ -55,6 +55,11 @@
       hand.position.y = -0.56; pivot.add(hand);
     });
 
+    /* قبضة اليد اليمين: أي أداة بتتمسك بتتعلّق هنا */
+    const grip = new THREE.Group();
+    grip.position.set(0, -0.6, 0.07);
+    arms[1].add(grip);
+
     const neck = cyl(0.05, 0.055, 0.09, 12, skin);
     neck.position.y = 1.45; root.add(neck);
 
@@ -146,6 +151,16 @@
     let phase = 0;
     let blinkIn = 2 + Math.random() * 3, blinkT = 0;
     let mood = 'calm', moodT = 0;
+    // وضعية الإيد: idle · reach (بتمد) · carry (شايلة) · pour (بتصب) · stir (بتقلّب) · shake (بترج)
+    let pose = 'idle', poseT = 0, lean = 0, stirPhase = 0;
+    const POSES = {
+      idle:  { arm: 0,     fore: 0,    lean: 0 },
+      reach: { arm: -1.35, fore: 0.25, lean: 0.12 },
+      carry: { arm: -0.95, fore: 0.15, lean: 0 },
+      pour:  { arm: -1.15, fore: 0.1,  lean: 0.05 },
+      stir:  { arm: -1.1,  fore: 0.2,  lean: 0.08 },
+      shake: { arm: -1.05, fore: 0.2,  lean: 0.03 }
+    };
     const lookAt = new THREE.Vector3();
     let looking = false;
     let yawWant = 0, pitchWant = 0, yawNow = 0, pitchNow = 0;
@@ -157,6 +172,10 @@
       looking = true;
       lookAt.copy(v);
     }
+    /** وضعية الإيد والجسم */
+    function setPose(name) { pose = POSES[name] ? name : 'idle'; }
+    function currentPose() { return pose; }
+
     /** تعبير مؤقت: 'happy' لما الخطوة تظبط، 'oops' لما تغلط */
     function express(kind, secs) {
       mood = kind || 'calm';
@@ -169,7 +188,7 @@
         phase += dt * (6.2 * (speed || 1));
         const sw = Math.sin(phase);
         arms[0].rotation.x = sw * 0.6;
-        arms[1].rotation.x = -sw * 0.6;
+        if (pose === 'idle') arms[1].rotation.x = -sw * 0.6;
         legs[0].rotation.x = -sw * 0.5;
         legs[1].rotation.x = sw * 0.5;
         root.position.y = Math.abs(Math.sin(phase)) * 0.035;
@@ -180,10 +199,28 @@
         const br = Math.sin(phase) * 0.5 + 0.5;
         torso.scale.set(1 + br * 0.012, 1 + br * 0.008, 1 + br * 0.012);
         arms[0].rotation.x = Math.sin(phase) * 0.05;
-        arms[1].rotation.x = -Math.sin(phase) * 0.05;
+        if (pose === 'idle') arms[1].rotation.x = -Math.sin(phase) * 0.05;
         legs[0].rotation.x = legs[1].rotation.x = 0;
         root.position.y = br * 0.008;
         torso.rotation.z = 0;
+      }
+
+      /* الوضعية بتتغلّب على أرجحة الدراع اليمين */
+      const P = POSES[pose] || POSES.idle;
+      poseT += dt;
+      const kp = Math.min(1, dt * 8);
+      arms[1].rotation.x += (P.arm - arms[1].rotation.x) * kp;
+      arms[1].rotation.z += ((pose === 'idle' ? 0 : -0.18) - arms[1].rotation.z) * kp;
+      lean += (P.lean - lean) * kp;
+      torso.rotation.x = lean;
+      // حركة صغيرة مستمرة حسب الوضعية: تقليب دايري، ورج سريع
+      if (pose === 'stir') {
+        stirPhase += dt * 7;
+        arms[1].rotation.x += Math.sin(stirPhase) * 0.09;
+        arms[1].rotation.z += Math.cos(stirPhase) * 0.12;
+      } else if (pose === 'shake') {
+        stirPhase += dt * 26;
+        arms[1].rotation.x += Math.sin(stirPhase) * 0.14;
       }
 
       /* الراس بتتابع النقطة — بزاوية محدودة زي الرقبة الحقيقية */
@@ -239,6 +276,6 @@
       }
     }
 
-    return { root, update, look, express, name: 'نورة' };
+    return { root, update, look, express, grip, setPose, currentPose, name: 'نورة' };
   };
 })(window);
