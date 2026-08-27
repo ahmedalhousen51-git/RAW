@@ -29,7 +29,7 @@ body {
   background: var(--cream);
   overflow: hidden;
 }
-button { font-family: inherit; }
+button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 
 /* ---------- الشريط العلوي ---------- */
 .raw-top {
@@ -67,8 +67,17 @@ button { font-family: inherit; }
 .raw-stock h3 {
   margin: 0 0 10px; font-size: .84rem; font-weight: 800;
   padding-bottom: 8px; border-bottom: 2px solid var(--brass);
-  display: flex; align-items: center; justify-content: space-between;
 }
+.raw-stock h3 button {
+  display: flex; width: 100%; align-items: center; justify-content: space-between;
+  background: none; border: none; padding: 0; cursor: pointer;
+  font: inherit; color: inherit;
+}
+.raw-stock h3 button span { transition: transform .2s ease; opacity: .55; }
+.raw-stock.folded h3 { margin-bottom: 0; border-bottom: none; padding-bottom: 0; }
+.raw-stock.folded h3 button span { transform: rotate(-90deg); }
+.raw-stock.folded #stock, .raw-stock.folded .raw-rank,
+.raw-stock.folded .raw-sound { display: none; }
 .raw-stock button {
   display: flex; width: 100%; align-items: center; gap: 9px; margin-bottom: 6px;
   padding: 8px 10px; border-radius: 10px;
@@ -416,6 +425,69 @@ button { font-family: inherit; }
   .raw-leds .led.busy.on, .raw-run.stop, .raw-care.due { animation: none !important; }
 }
 
+
+/* ==========================================================================
+   الموبايل: جويستيك، مساحات لمس أكبر، واحترام حواف الشاشة
+   ========================================================================== */
+/* الجويستيك على الشمال الفيزيائي (صباع الإيد الشمال) مهما كان اتجاه الصفحة */
+.raw-stick-zone {
+  position: absolute; left: 0; right: auto; bottom: 0;
+  width: 44%; height: 55%;
+  touch-action: none; z-index: 6;
+}
+.raw-stick {
+  position: absolute; width: 108px; height: 108px; margin: -54px 0 0 -54px;
+  border-radius: 50%; border: 2px solid rgba(255, 236, 205, .28);
+  background: rgba(26, 20, 17, .3); backdrop-filter: blur(4px);
+  opacity: 0; transition: opacity .18s ease; pointer-events: none;
+}
+.raw-stick.on { opacity: 1; }
+.raw-stick i {
+  position: absolute; inset-inline-start: 50%; top: 50%;
+  width: 46px; height: 46px; margin: -23px 0 0 -23px;
+  border-radius: 50%; background: rgba(232, 201, 154, .8);
+  box-shadow: 0 4px 14px rgba(0,0,0,.4);
+}
+
+/* على اللمس: مفيش مفاتيح كيبورد ولا تلميحات كيبورد */
+body.is-touch .raw-acts button kbd { display: none; }
+body.is-touch .raw-help { display: none; }
+body.is-touch .raw-acts button { min-width: 66px; padding: 9px 10px; }
+body.is-touch .raw-acts { bottom: 14px; inset-inline-end: 10px; left: auto; transform: none;
+  flex-direction: column; align-items: stretch; max-width: 84px; }
+body.is-touch .raw-meter { position: absolute; inset-inline-end: 96px; bottom: 8px; width: 180px; }
+body.is-touch .raw-cup { bottom: 12px; left: 42%; }
+body.is-touch .raw-tag { bottom: 78px; }
+
+/* حواف الشاشة (الـnotch) */
+.raw-top { padding-inline-start: max(20px, env(safe-area-inset-left));
+           padding-inline-end: max(20px, env(safe-area-inset-right)); }
+.raw-stock { inset-inline-start: max(16px, env(safe-area-inset-right)); }
+.raw-acts { padding-bottom: env(safe-area-inset-bottom); }
+
+/* الشاشة العرضية القصيرة (موبايل مقلوب): كل حاجة أنحف */
+@media (max-height: 480px) and (orientation: landscape) {
+  .raw-top { height: 42px; }
+  .raw-wrap { height: calc(100svh - 42px); }
+  .raw-stock { width: 132px; padding: 8px; top: 8px; }
+  .raw-stock h3 { font-size: .74rem; margin-bottom: 6px; padding-bottom: 5px; }
+  .raw-stock button { font-size: .66rem; padding: 5px 7px; margin-bottom: 4px; }
+  .raw-rank, .raw-sound { font-size: .62rem; padding: 4px 6px; }
+  .raw-hud { max-height: calc(100% - 54px); padding: 9px 11px 11px; }
+  .raw-hud-id small { display: none; }
+  .raw-lcd { margin: 7px 0; padding: 6px 8px; }
+  .raw-ctrls { gap: 6px; }
+  .raw-run { margin-top: 8px; padding: 9px; }
+  .raw-serve { padding: 12px 14px 14px; }
+  .raw-serve .score b { font-size: 2rem; }
+}
+
+/* الموبايل الطولي: اللوحة بتاخد نص الشاشة السفلي */
+@media (max-width: 620px) and (orientation: portrait) {
+  .raw-hud { max-height: 52%; }
+  .raw-serve { width: calc(100% - 24px); }
+}
+
 /* ---------- تنبيه الوضع الطولي على الموبايل ---------- */
 .raw-rotate { display: none; }
 @media (max-width: 720px) and (orientation: portrait) {
@@ -457,8 +529,11 @@ button { font-family: inherit; }
   .raw-help { font-size: .68rem; max-width: 160px; padding: 7px 10px; }
 }
 @media (max-width: 520px) {
-  .raw-stock { width: 128px; top: 8px; inset-inline-start: 8px; padding: 8px; }
-  .raw-stock button { font-size: .68rem; padding: 5px 7px; gap: 6px; }
+  .raw-stock { width: 112px; top: 8px; inset-inline-start: 8px; padding: 7px; }
+  .raw-stock h3 { font-size: .72rem; margin-bottom: 6px; padding-bottom: 5px; }
+  .raw-stock button { font-size: .63rem; padding: 5px 6px; gap: 5px; margin-bottom: 4px; }
+  .raw-stock button i { width: 8px; height: 8px; }
+  .raw-rank, .raw-sound { font-size: .58rem; padding: 4px 5px; }
   .raw-help { display: none; }
   .raw-tag { font-size: .84rem; padding: 9px 14px; bottom: 14px; }
   .raw-panel { bottom: 10px; padding: 13px 14px; }

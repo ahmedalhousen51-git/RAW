@@ -53,8 +53,10 @@
     RAW.reduceMotion = !!(window.matchMedia &&
       window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    // الموبايل بياخد إعدادات أخف من الأول بدل ما يبوظ أول ٤ ثواني
+    const coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+    const renderer = new THREE.WebGLRenderer({ antialias: !coarse, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, coarse ? 1.5 : 2));
     renderer.setSize(W, H, false);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -75,6 +77,10 @@
     const fx = RAW.fx(THREE);
     const room = RAW.room(THREE, scene, mats, fx);
     const lights = RAW.lighting(THREE, scene, mats, room.cove);
+    if (coarse) {
+      lights.key.shadow.mapSize.set(1024, 1024);
+      renderer.shadowMap.type = THREE.PCFShadowMap;
+    }
     lights.setTime(o.time || lights.timeOfDay());       // لون الإضاءة حسب وقت اليوم
     const st = RAW.stations(THREE, scene, mats, fx);
     const stations = st.stations, stationRoots = st.roots;
@@ -96,6 +102,7 @@
 
     const atmos = RAW.atmos(THREE, renderer, scene, mats);
     atmos.tune();                                        // قوة الانعكاس لكل خامة
+    if (coarse) atmos.setDust(0.28);
     atmos.setShaft(lights.presets[lights.current].shaft);
 
     const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
@@ -152,6 +159,8 @@
     const goal = chef.root.position.clone();
     const keys = Object.create(null);
     let current = null;                    // المحطة اللي هو واقف عندها
+    let blocked = false;                   // متحشورة في حاجة دلوقتي؟
+    const touchIn = { x: 0, z: 0 };        // إدخال الجويستيك على الموبايل
     let pending = null;                    // محطة اتطلبت بزرار/كليك، تفتح لوحتها لما يوصل
     const tmp = new THREE.Vector3();
 
@@ -345,9 +354,17 @@
 
       const p = chef.root.position;
       let moving = false, faceX = 0, faceZ = 0;
+      const wasX = p.x, wasZ = p.z;
+      let want = 0;                                   // الخطوة اللي كانت المفروض تتاخد
+
+      // الجويستيك على الموبايل بيدي إدخال تدريجي (٠..١) زي الأسهم بالظبط
+      if (!ix && !iz && (touchIn.x || touchIn.z)) { ix = touchIn.x; iz = touchIn.z; }
 
       if (ix || iz) {
-        tmp.set(ix, 0, iz).normalize().multiplyScalar(SPEED * dt);
+        tmp.set(ix, 0, iz);
+        const mag = Math.min(1, tmp.length());
+        tmp.normalize().multiplyScalar(SPEED * dt * mag);
+        want = tmp.length();
         p.x += tmp.x; p.z += tmp.z;
         collide(p);
         goal.set(p.x, 0, p.z);
@@ -358,11 +375,24 @@
         const d = Math.hypot(dx, dz);
         if (d > 0.06) {
           const stepLen = Math.min(d, SPEED * dt);
+          want = stepLen;
           p.x += (dx / d) * stepLen; p.z += (dz / d) * stepLen;
           collide(p);
           moving = true; faceX = dx; faceZ = dz;
         }
       }
+
+      /* خبطت في ترابيزة أو دولاب؟ الاصطدام بيرجّعها مكانها، فلو المسافة اللي
+         اتحركتها فعلاً شبه صفر يبقى هي واقفة — نوقف دورة المشي بدل ما تفضل
+         بتمشي في مكانها، ونلغي هدف الدوسة عشان ما تفضلش تزنّ على الحاجز. */
+      if (moving && want > 0.0001) {
+        const done = Math.hypot(p.x - wasX, p.z - wasZ);
+        if (done < want * 0.35) {
+          moving = false;
+          if (!ix && !iz) goal.set(p.x, 0, p.z);      // كانت رايحة لنقطة → الغيها
+          if (!blocked) { blocked = true; if (o.onBlocked) o.onBlocked(); }
+        } else blocked = false;
+      } else if (!moving) blocked = false;
 
       if (moving) {
         // يلف ناحية الحركة بأقصر طريق — lerp عادي بيلفّه الطريق الطويل عند ±π
@@ -423,6 +453,7 @@
       renderer.setSize(w, h, false);
       cam.aspect = w / h;
       cam.fov = rig.fit(cam.aspect);          // الشاشة الطولية بتاخد زاوية أوسع
+      room.setCeiling(cam.aspect >= 0.75);    // الطولي: من غير سقف عشان الكادر يمتلي
       cam.updateProjectionMatrix();
     }
     resize();
@@ -467,6 +498,13 @@
       unfocus() { holdWide = true; rig.setFocus(null); return true; },
       /** يرجّع التركيز على المحطة اللي هي عندها */
       refocus() { holdWide = false; rig.setFocus(current); return !!current; },
+      /** إدخال حركة تدريجي (جويستيك اللمس): كل قيمة من -١ لـ١ */
+      move(x, z) {
+        touchIn.x = Math.max(-1, Math.min(1, x || 0));
+        touchIn.z = Math.max(-1, Math.min(1, z || 0));
+      },
+      /** واقفة في حاجة دلوقتي؟ */
+      isBlocked() { return blocked; },
       /** التفاعل اليدوي: مسك، سيب، صبّ، رجّ، تقليب، تنظيف */
       hands: {
         grab: () => hands.grab(),

@@ -32,7 +32,7 @@
     });
 
     /* ---------- الأرضية ---------- */
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(16.2, 14.6), mats.floorMat);
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(26, 24), mats.floorMat);
     floor.rotation.x = -Math.PI / 2;
     floor.position.set(0, 0, 0.2);
     floor.receiveShadow = true;
@@ -75,9 +75,11 @@
     const ceil = new THREE.Mesh(new THREE.PlaneGeometry(16.2, 14.6), M(0xF0E7D9, 0.95));
     ceil.rotation.x = Math.PI / 2;
     ceil.position.set(0, L.wallH, 0.2); add(ceil);
+    const beams = [];
     [-3.4, 1.6].forEach(z => {
       const beam = box(16.2, 0.22, 0.34, M(C.woodDark, 0.85));
       beam.position.set(0, L.wallH - 0.12, z); add(beam);
+      beams.push(beam);
     });
 
     /* ---------- نوافذ على اليمين: ضوء نهار ناعم ---------- */
@@ -399,6 +401,19 @@
       block(g.position.x, g.position.z, 0.42, 0.42);
     });
 
-    return { floor, obstacles, layout: L, cove };
+    /* في الشاشات الطولية بنشيل السقف والكمر عشان الكاميرا تعلى فوق الحيطة
+       وتبص جوه الأوضة — كده الكادر بيمتلي بالمطبخ بدل ما السقف ياخد نصه. */
+    function setCeiling(on) {
+      ceil.visible = on;
+      beams.forEach(b => (b.visible = on));
+      // من غير سقف الكاميرا بتعلى، فبنطوّل الحيطان عشان ما يبانش فراغ فوقها
+      const k = on ? 1 : 1.75;
+      [backWall, leftWall, rightWall].forEach(w => {
+        w.scale.y = k;
+        w.position.y = (L.wallH * k) / 2;
+      });
+    }
+
+    return { floor, obstacles, layout: L, cove, setCeiling };
   };
 })(window);

@@ -345,6 +345,7 @@
         if (!held || !held.stir) return false;
         if (!cupNear() && !items[0].held) return false;
         stirMode = true; stirTurns = 0; stirPower = 0; stirIdle = 0;
+        RAW.stirring = true;
         lastPt = null; centre = null;
         chef.setPose('stir');
         addEventListener('pointermove', onStirMove);
@@ -352,6 +353,7 @@
       } else {
         if (!stirMode) return false;
         stirMode = false;
+        RAW.stirring = false;
         removeEventListener('pointermove', onStirMove);
         chef.setPose(held ? 'carry' : 'idle');
         fire('stir-stop', { turns: +stirTurns.toFixed(2), power: +stirPower.toFixed(2) });

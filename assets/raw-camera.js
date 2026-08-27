@@ -17,7 +17,9 @@
     // المدار اللي المستخدم بيحرّكه — بيتطبّق على اللقطة الواسعة
     let yaw = WIDE.yaw, pitch = WIDE.pitch, dist = WIDE.dist;
     // الشاشات الطولية بتضيّق مجال الرؤية الأفقي، فبنبعد الكاميرا شوية
-    let spread = 1;
+    let spread = 1, drop = 0;      // drop = بنوطّي نقطة النظر في الشاشات الطولية
+    let maxY = 3.9;                // أقصى ارتفاع للكاميرا (بيعلى في الطولي)
+    let bucket = '';               // نوع الشاشة الحالي (عرضي/طولي)
     let focus = null;                       // المحطة اللي الكاميرا مركّزة عليها
     let roll = 0, breath = 0;               // ميلة درامية خفيفة ونَفَس دخول بطيء
     const target = WIDE.target.clone();
@@ -31,7 +33,7 @@
       const d = dist * spread;
       out.set(
         tx + Math.sin(yaw) * d * Math.cos(pitch),
-        WIDE.target.y + Math.sin(pitch) * d,
+        WIDE.target.y - drop + Math.sin(pitch) * d,
         WIDE.target.z + Math.cos(yaw) * d * Math.cos(pitch)
       );
       return out;
@@ -53,6 +55,7 @@
     }
     function onMove(e) {
       if (!down) return;
+      if (RAW.stirring) return;          // الحركة دي تقليب مش تدوير كاميرا
       const dx = e.clientX - lx, dy = e.clientY - ly;
       lx = e.clientX; ly = e.clientY;
       if (Math.abs(e.clientX - sx) + Math.abs(e.clientY - sy) > 6) dragged = true;
@@ -116,14 +119,26 @@
     /* ---------- الحالة ---------- */
     /* بيتنده من الـresize: بيرجّع زاوية الرؤية المناسبة للنسبة الجديدة */
     function fit(aspect) {
-      const was = spread;
-      let fov;
-      if (aspect >= 1.4) { spread = 1; fov = 44; }
-      else if (aspect >= 1.0) { spread = 1.12; fov = 50; }
-      else { spread = 1.32; fov = 58; }
-      // لو المسافة اتغيّرت وإحنا في اللقطة الواسعة، اقفز مكانها فوراً من غير انزلاق
-      if (was !== spread && !focus) { widePos(cam.position, 0); cam.lookAt(target); }
-      return fov;
+      let cfg;
+      if (aspect >= 1.4)       cfg = { b: 'wide',  spread: 1,    drop: 0,     fov: 44, maxY: 3.9, pMax: 0.52, pitch: 0.135 };
+      else if (aspect >= 1.0)  cfg = { b: 'mid',   spread: 1.12, drop: 0.1,   fov: 50, maxY: 4.2, pMax: 0.55, pitch: 0.17 };
+      else if (aspect >= 0.75) cfg = { b: 'tall',  spread: 1.2,  drop: 0.15,  fov: 54, maxY: 4.8, pMax: 0.62, pitch: 0.26 };
+      // موبايل طولي: الكاميرا بتعلى فوق الحيطة وتبص جوه الأوضة زي بيت الدمية
+      else                     cfg = { b: 'phone', spread: 1.12, drop: -0.25, fov: 48, maxY: 9.2, pMax: 0.78, pitch: 0.6 };
+
+      spread = cfg.spread;
+      drop = cfg.drop;
+      maxY = cfg.maxY;
+      LIMIT.pitchMax = cfg.pMax;
+      if (cfg.b !== bucket) {
+        // اتغيّر اتجاه الشاشة: نرجّع الزاوية للوضع المناسب ونقفز مكانها فوراً
+        bucket = cfg.b;
+        pitch = cfg.pitch;
+        if (!focus) { widePos(cam.position, 0); cam.lookAt(target); }
+      } else {
+        pitch = Math.min(pitch, LIMIT.pitchMax);
+      }
+      return cfg.fov;
     }
 
     function setFocus(st) {
@@ -142,7 +157,7 @@
         wantPos.copy(focus.obj.position).addScaledVector(focus.view, push);
       } else {
         breath = 0;
-        wantTarget.set(WIDE.target.x + (chefPos ? chefPos.x * 0.22 : 0), WIDE.target.y, WIDE.target.z);
+        wantTarget.set(WIDE.target.x + (chefPos ? chefPos.x * 0.22 : 0), WIDE.target.y - drop, WIDE.target.z);
         widePos(wantPos, chefPos ? chefPos.x : 0);
       }
       // damping مستقل عن الـframe rate
@@ -150,7 +165,7 @@
       cam.position.lerp(wantPos, k);
       target.lerp(wantTarget, k);
       // إبقاء الكاميرا جوه حدود معقولة — ما تدخلش جدار ولا تنزل تحت الأرض
-      cam.position.y = Math.max(1.1, Math.min(3.9, cam.position.y));
+      cam.position.y = Math.max(1.1, Math.min(maxY, cam.position.y));
       cam.position.x = Math.max(-7.5, Math.min(7.5, cam.position.x));
       cam.position.z = Math.max(-5.4, Math.min(15.5, cam.position.z));
       cam.lookAt(target);

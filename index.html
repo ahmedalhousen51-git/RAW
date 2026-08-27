@@ -2,7 +2,9 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#241C16">
+<meta name="mobile-web-app-capable" content="yes">
 <title>RAW — مطبخ الكافيه ثلاثي الأبعاد</title>
 <meta name="description" content="تجربة تفاعلية ثلاثية الأبعاد لمطبخ كافيه RAW: امشي جوه المكان، اقترب من المحطات، وشغّل الماكينات.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -21,7 +23,7 @@
   <div id="stage"></div>
 
   <aside class="raw-stock">
-    <h3>المخزون</h3>
+    <h3><button type="button" id="stockToggle" aria-expanded="true" title="اطوي/افتح">المخزون <span>▾</span></button></h3>
     <div id="stock"></div>
     <div class="raw-rank" id="rank" title="مستواك وإتقانك">—</div>
     <button type="button" class="raw-sound" id="time" title="غيّر وقت اليوم">الوقت: —</button>
@@ -87,6 +89,7 @@
 <script src="assets/raw-stations.js"></script>
 <script src="assets/raw-character.js"></script>
 <script src="assets/raw-hands.js"></script>
+<script src="assets/raw-touch.js"></script>
 <script src="assets/raw-drink.js"></script>
 <script src="assets/raw-atmos.js"></script>
 <script src="assets/raw-camera.js"></script>
@@ -236,6 +239,14 @@
   window.RAWHud = hud;                     // للتشخيص ولربط صفحات تانية
   window.RAWServe = serveCard;
 
+  // على الشاشات الصغيرة اللوحة بتتطوي بدوسة على عنوانها
+  $('stockToggle').addEventListener('click', () => {
+    const st = document.querySelector('.raw-stock');
+    const folded = st.classList.toggle('folded');
+    $('stockToggle').setAttribute('aria-expanded', String(!folded));
+    RAW.sfx.click();
+  });
+
   // زرار الصوت بيغيّر نصّه وبيشغّل/يقفل همهمة المكان
   els.sound.addEventListener('click', () => {
     els.sound.textContent = RAW.sfx.on ? 'الصوت: شغّال' : 'الصوت: مقفول';
@@ -315,6 +326,15 @@
       // التقديم بيتفتح لما يبقى في الكوباية حاجة تستاهل
       $('serveBtn').hidden = !(d.level >= 0.15 && serveCard.count() > 0);
     }, 500);
+
+    // جويستيك اللمس: بيتفتح على الموبايل بس
+    if (RAW.isTouch()) {
+      document.body.classList.add('is-touch');
+      RAW.touch(wrap, a);
+      // على الموبايل اللوحة بتبدأ مطوية — دوسة على العنوان بتفتحها
+      document.querySelector('.raw-stock').classList.add('folded');
+      $('stockToggle').setAttribute('aria-expanded', 'false');
+    }
 
     paintRank();
     // نورة بترحّب حسب تاريخك معاها
