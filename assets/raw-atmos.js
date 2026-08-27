@@ -82,8 +82,17 @@
       });
     }
 
-    let cooldown = 0;
+    let cooldown = 0, envOn = true;
+    /* الانعكاسات = ٦ رندرات للمشهد في فريم واحد. على الموبايل دي أكبر مصدر
+       للّاج، فبنقدر نقفلها خالص. */
+    function setEnv(on) {
+      envOn = !!on;
+      scene.environment = envOn ? rt.texture : null;
+      if (!envOn) cooldown = 1e9;
+      else cooldown = 0;
+    }
     function refresh() {
+      if (!envOn) return;
       dust.visible = false;                    // الغبار ما ينفعش ينعكس على نفسه
       shafts.forEach(s => (s.visible = false));
       cube.update(renderer, scene);
@@ -109,7 +118,7 @@
       if (cooldown <= 0) refresh();
     }
 
-    return { dust, shafts, refresh, tune, update,
+    return { dust, shafts, refresh, tune, update, setEnv,
       setShaft(v) { shaftMat.opacity = v; },
       setDust(v) { dustMat.opacity = v; },
       dispose() { rt.dispose(); scene.environment = null; } };

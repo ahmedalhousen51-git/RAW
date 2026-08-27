@@ -10,11 +10,11 @@
     const steams = [], pulses = [], bubbles = [], spins = [];
 
     /* بخار بيطلع فعلاً: كل نفخة تطلع، تتوسّع، تبهت، وتبدأ من الأول */
-    function steam(parent, x, y, z, spread, rise, count) {
+    function steam(parent, x, y, z, spread, rise, count, size) {
       const g = new THREE.Group();
       const n = count || 8;
       for (let i = 0; i < n; i++) {
-        const p = new THREE.Mesh(new THREE.SphereGeometry(0.05, 7, 6),
+        const p = new THREE.Mesh(new THREE.SphereGeometry(size || 0.05, 7, 6),
           new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false }));
         // نفرّق الطور والانزياح، وإلا التمان نفخات يطلعوا زي خرزة واحدة
         p.userData = {

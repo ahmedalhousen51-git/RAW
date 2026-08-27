@@ -25,7 +25,9 @@
   RAW.room = function (THREE, scene, mats, fx) {
     const { C, M, box, cyl, decal } = mats;
     const obstacles = [];
+    const trinkets = [];                    // تفاصيل صغيرة بتتقفل في الجودة الواطية
     const add = (m) => { scene.add(m); return m; };
+    const addSmall = (m) => { scene.add(m); trinkets.push(m); return m; };
     // مستطيل اصطدام على مستوى الأرض
     const block = (x, z, w, d) => obstacles.push({
       x0: x - w / 2, x1: x + w / 2, z0: z - d / 2, z1: z + d / 2
@@ -209,14 +211,14 @@
       const h = 0.2 + (i % 3) * 0.05;
       const jar = cyl(0.085, 0.085, h, 16, M(jarCols[i % jarCols.length], 0.55));
       jar.position.set(-2.35 + i * 0.42, 2.6 + h / 2, L.wallFaceZ + 0.16);
-      jar.castShadow = true; add(jar);
+      jar.castShadow = true; addSmall(jar);
       const lid = cyl(0.09, 0.09, 0.03, 16, M(C.brass, 0.35, 0.8));
       lid.position.set(jar.position.x, 2.6 + h + 0.015, jar.position.z); add(lid);
     }
     for (let i = 0; i < 9; i++) {                 // فناجين مقلوبة على الرف السفلي
       const cup = cyl(0.055, 0.042, 0.09, 14, M(C.cream, 0.4));
       cup.position.set(-2.4 + i * 0.6, 2.045, L.wallFaceZ + 0.14);
-      cup.castShadow = true; add(cup);
+      cup.castShadow = true; addSmall(cup);
     }
     // علب بن على الرف السفلي من اليمين
     ['RAW', 'RAW'].forEach((t, i) => {
@@ -239,16 +241,16 @@
         const sieve = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.04, 16),
           M(C.steel, 0.4, 0.6));
         sieve.rotation.x = Math.PI / 2;
-        sieve.position.set(x, 1.55, L.wallFaceZ + 0.1); sieve.castShadow = true; add(sieve);
+        sieve.position.set(x, 1.55, L.wallFaceZ + 0.1); sieve.castShadow = true; addSmall(sieve);
       } else if (i % 3 === 1) {                        // معلقة
         const sp = cyl(0.012, 0.012, 0.3, 8, M(C.steel, 0.35, 0.7));
         sp.position.set(x, 1.5, L.wallFaceZ + 0.1); add(sp);
         const bowl = new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 8), M(C.steel, 0.35, 0.7));
         bowl.scale.set(1, 0.4, 1.3);
-        bowl.position.set(x, 1.35, L.wallFaceZ + 0.1); add(bowl);
+        bowl.position.set(x, 1.35, L.wallFaceZ + 0.1); addSmall(bowl);
       } else {                                          // إبريق صغير
         const jug = cyl(0.07, 0.06, 0.16, 14, M(C.steel, 0.35, 0.65));
-        jug.position.set(x, 1.5, L.wallFaceZ + 0.1); jug.castShadow = true; add(jug);
+        jug.position.set(x, 1.5, L.wallFaceZ + 0.1); jug.castShadow = true; addSmall(jug);
       }
     }
 
@@ -283,7 +285,7 @@
       leaf.scale.set(1, 0.55, 0.8);
       leaf.position.set(-2.55 + Math.cos(i * 1.3) * 0.06, TOPY + 0.16 + (i % 2) * 0.05,
                         L.backCounterZ + 0.06 + Math.sin(i * 1.3) * 0.06);
-      leaf.castShadow = true; add(leaf);
+      leaf.castShadow = true; addSmall(leaf);
     }
     // برطمانات مكوّنات
     [[-0.7, 0x8A6242], [-0.42, 0xE0D6C2]].forEach(([x, col]) => {
@@ -355,7 +357,7 @@
       bean.scale.set(1, 0.7, 1.3);
       bean.position.set(L.island.x + 0.7 + (Math.random() - 0.5) * 0.7, 0.965,
                         L.island.z + (Math.random() - 0.5) * 0.7);
-      bean.rotation.y = i * 1.1; add(bean);
+      bean.rotation.y = i * 1.1; addSmall(bean);
     }
     const bowl = new THREE.Mesh(new THREE.SphereGeometry(0.16, 18, 12, 0, Math.PI * 2, 0, Math.PI / 2),
       M(0x2E5A4B, 0.5));
@@ -440,6 +442,9 @@
       });
     }
 
-    return { floor, obstacles, layout: L, cove, setCeiling };
+    /** مستوى التفاصيل: بيقفل الحاجات الصغيرة اللي بتاكل draw calls */
+    function setDetail(on) { trinkets.forEach(t => (t.visible = on)); }
+
+    return { floor, obstacles, layout: L, cove, setCeiling, setDetail };
   };
 })(window);

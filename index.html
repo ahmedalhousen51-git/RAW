@@ -239,6 +239,29 @@
     }
   }
 
+  /** قفل لوحة الماكينة والرجوع للمطبخ (من غير ما نوقف عملية شغّالة) */
+  function closePanel() {
+    if (hud.busy() || !hud.isOpen()) return false;
+    hud.close();
+    setFocusMode(false);
+    if (api) { api.cupTo(null); api.unfocus(); }
+    return true;
+  }
+
+  // سحب اللوحة لتحت بيقفلها (إيماءة طبيعية على الموبايل)
+  (function panelSwipe() {
+    const el = els.hud;
+    let y0 = null;
+    el.addEventListener('pointerdown', e => {
+      if (e.target.closest('input, button')) return;   // مش سحب لو ماسك زرار
+      y0 = e.clientY;
+    });
+    el.addEventListener('pointerup', e => {
+      if (y0 != null && e.clientY - y0 > 70) closePanel();
+      y0 = null;
+    });
+  })();
+
   window.RAWHud = hud;                     // للتشخيص ولربط صفحات تانية
   window.RAWServe = serveCard;
 
@@ -294,10 +317,9 @@
       const spec = RAW.consoles[st.id];
       ui.say(st, (spec && spec.action.busy) || 'شغّالة…');
     },
-    onEscape() {
-      if (hud.busy()) return;
-      if (hud.isOpen()) { hud.close(); setFocusMode(false); if (api) { api.cupTo(null); api.unfocus(); } }
-    },
+    onEscape() { closePanel(); },
+    // دوسة على الأرض بتقفل اللوحة وتمشيها — أسهل حاجة على الموبايل
+    onFloorTap() { closePanel(); },
     onTick(dt) {
       hud.tick(dt);
       paintHands();

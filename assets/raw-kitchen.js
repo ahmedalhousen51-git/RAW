@@ -291,6 +291,7 @@
         goal.set(hitF[0].point.x, 0, hitF[0].point.z);
         collide(goal);
         pending = null;
+        if (o.onFloorTap) o.onFloorTap();      // دوسة على الأرض = اقفل اللوحة وامشي
       }
     }
 
@@ -331,9 +332,12 @@
        وبنقيس الأداء مرتين: لو مش لاحق ننزل درجة، ولو لسه مش لاحق ننزل تانية.
        والمستخدم يقدر يختار بنفسه من زرار الجودة. */
     const QUALITY = {
-      high: { pr: MAXPR,                    shadow: coarse ? 1024 : 2048, dust: coarse ? 0.34 : 0.5, shadows: true },
-      mid:  { pr: Math.min(MAXPR, 1.4),     shadow: 1024,                 dust: 0.25,                shadows: true },
-      low:  { pr: Math.min(MAXPR, 1),       shadow: 512,                  dust: 0,                   shadows: false }
+      high: { pr: MAXPR,                shadow: coarse ? 1024 : 2048, dust: coarse ? 0.34 : 0.5,
+              shadows: true,  env: !coarse, detail: true },
+      mid:  { pr: Math.min(MAXPR, 1.4), shadow: 1024, dust: 0.2,
+              shadows: true,  env: false,   detail: true },
+      low:  { pr: Math.min(MAXPR, 1),   shadow: 512,  dust: 0,
+              shadows: false, env: false,   detail: false }
     };
     let qLevel = 'high';
     function applyQuality(name) {
@@ -345,6 +349,8 @@
       lights.key.shadow.mapSize.set(q.shadow, q.shadow);
       if (lights.key.shadow.map) { lights.key.shadow.map.dispose(); lights.key.shadow.map = null; }
       atmos.setDust(q.dust);
+      atmos.setEnv(q.env);                 // الانعكاسات أغلى حاجة على الموبايل
+      room.setDetail(q.detail);
       resize();
       return qLevel;
     }
@@ -353,7 +359,7 @@
     function quality(dt) {
       if (qStage > 1) return;
       qFrames++; qTime += dt;
-      if (qTime < 3.5) return;
+      if (qTime < (qStage === 0 ? 2.2 : 3.5)) return;
       const fps = qFrames / qTime;
       qFrames = 0; qTime = 0;
       if (fps >= 45) { qStage = 2; return; }         // الجهاز لاحق — سيبها عالية

@@ -221,6 +221,24 @@
     whisk.position.set(0, 0.075, 0);
     whisk.visible = false;
     matcha.add(whisk);
+    // رغوة ميكروية: كور صغيرة بتظهر تدريجياً على السطح
+    const microFoam = [];
+    const microMat = new THREE.MeshStandardMaterial({ color: 0xD8E9B4, roughness: 0.95, transparent: true, opacity: 0 });
+    for (let i = 0; i < 16; i++) {
+      const f = new THREE.Mesh(new THREE.SphereGeometry(0.008 + (i % 3) * 0.004, 7, 6), microMat);
+      const a = (i / 16) * Math.PI * 2, r = 0.018 + (i % 4) * 0.013;
+      f.position.set(Math.cos(a) * r, 0.063, Math.sin(a) * r);
+      f.scale.setScalar(0.2);
+      matcha.add(f); microFoam.push(f);
+    }
+    // بودرة ماتشا بتتنثر أول ما تبدأ
+    const powder = [];
+    const powderMat = new THREE.MeshBasicMaterial({ color: 0x7FA83C, transparent: true, opacity: 0 });
+    for (let i = 0; i < 12; i++) {
+      const d = new THREE.Mesh(new THREE.SphereGeometry(0.0035, 5, 4), powderMat);
+      d.userData = { a: Math.random() * 6.28, r: Math.random() * 0.05, t: Math.random() };
+      matcha.add(d); powder.push(d);
+    }
     const teaBubbles = [];
     for (let i = 0; i < 10; i++) {
       const b = new THREE.Mesh(new THREE.SphereGeometry(0.0035, 6, 5),
@@ -246,7 +264,47 @@
 
     /* ====================== 🥛 اللبن ====================== */
     const milk = stations.milk;
-    const milkSteam = fx.steam(scene, milk.obj.position.x, TOP + 0.26, milk.obj.position.z, 0.12, 0.5, 8);
+    const milkRig = new THREE.Group();
+    const steelM = M(C.steel, 0.26, 0.75);
+    // إبريق التبخير
+    const pit = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.062, 0.17, 20, 1, true), steelM);
+    pit.position.y = 0.085; milkRig.add(pit);
+    const pitBase = cyl(0.062, 0.062, 0.008, 18, steelM);
+    pitBase.position.y = 0.004; milkRig.add(pitBase);
+    const pitSpout = box(0.05, 0.04, 0.05, steelM);
+    pitSpout.position.set(0, 0.165, 0.07); pitSpout.rotation.x = 0.6; milkRig.add(pitSpout);
+    const pitHandle = new THREE.Mesh(new THREE.TorusGeometry(0.036, 0.009, 6, 12), steelM);
+    pitHandle.position.set(-0.093, 0.08, 0); pitHandle.rotation.y = Math.PI / 2; milkRig.add(pitHandle);
+    // اللبن جوّه: المستوى والرغوة بيعلوا مع التبخير
+    const milkMat = new THREE.MeshPhysicalMaterial({ color: 0xFBF4E6, roughness: 0.28, clearcoat: 0.6 });
+    const milkBody = cyl(0.07, 0.06, 0.1, 18, milkMat);
+    milkBody.position.y = 0.06; milkRig.add(milkBody);
+    const milkFoamMat = new THREE.MeshStandardMaterial({ color: 0xFFFDF7, roughness: 0.9, transparent: true, opacity: 0 });
+    const milkFoam = cyl(0.069, 0.068, 0.012, 18, milkFoamMat);
+    milkFoam.position.y = 0.112; milkRig.add(milkFoam);
+    // دوامة اللبن (whirlpool) — علامة التبخير الصح
+    const milkSwirl = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.05, 16, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0xFFF6E4, transparent: true, opacity: 0,
+        side: THREE.DoubleSide, depthWrite: false }));
+    milkSwirl.position.y = 0.115; milkRig.add(milkSwirl);
+    // لانس البخار داخل في اللبن
+    const wandArm = cyl(0.011, 0.009, 0.24, 10, M(C.steelDark, 0.3, 0.8));
+    wandArm.position.set(0.035, 0.2, -0.02); wandArm.rotation.z = 0.42; milkRig.add(wandArm);
+    const wandTip = cyl(0.009, 0.007, 0.03, 8, M(C.steelDark, 0.3, 0.8));
+    wandTip.position.set(0.005, 0.095, -0.005); milkRig.add(wandTip);
+    // فقاقيع دقيقة
+    const milkBubbles = [];
+    for (let i = 0; i < 12; i++) {
+      const b = new THREE.Mesh(new THREE.SphereGeometry(0.003 + (i % 3) * 0.0015, 6, 5),
+        new THREE.MeshBasicMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0 }));
+      b.userData = { a: Math.random() * 6.28, r: 0.015 + Math.random() * 0.04, t: Math.random() };
+      milkRig.add(b); milkBubbles.push(b);
+    }
+    milkRig.position.set(milk.obj.position.x + 0.42, TOP, milk.obj.position.z + 0.2);
+    milkRig.traverse(n => { if (n.isMesh) n.castShadow = true; });
+    scene.add(milkRig);
+    const milkSteam = fx.steam(milkRig, 0, 0.2, 0, 0.07, 0.42, 10, 0.022);
+    let milkFoamLevel = 0, milkSpin = 0, milkJitter = 0;
 
     /* ====================== التشغيل ====================== */
     let cur = null, curK = 0, curVals = null, cool = 0;
@@ -362,9 +420,39 @@
 
     /* ---------- 🥛 ---------- */
     function runMilk(k, dt, now, v) {
-      milkSteam.userData.boost = 1;
+      const wantFoam = (v.foam == null ? 35 : v.foam) / 100;
+      const heat = (v.heat || 64) / 78;
+      milkSteam.userData.boost = 0.6 + heat * 0.6;
       if (milk.lamp) milk.lamp.material.emissiveIntensity = 0.4 + Math.sin(now * 0.02) * 0.3;
-      drink.state.foam = Math.min(1, drink.state.foam + dt * 0.14 * ((v.foam || 35) / 50));
+
+      // الرغوة بتزيد لحد النسبة المطلوبة، والمستوى بيعلى معاها
+      milkFoamLevel = Math.min(wantFoam, milkFoamLevel + dt * 0.42);
+      milkFoamMat.opacity = Math.min(1, 0.25 + milkFoamLevel * 1.6);
+      milkFoam.scale.y = 0.5 + milkFoamLevel * 6;
+      milkFoam.position.y = 0.112 + milkFoamLevel * 0.02;
+      milkBody.scale.y = 1 + milkFoamLevel * 0.25;
+      milkBody.position.y = 0.06 + milkFoamLevel * 0.012;
+      // الدوامة بتلف في وش اللبن
+      milkSpin += dt * (3 + heat * 5);
+      milkSwirl.rotation.y = milkSpin;
+      milkSwirl.material.opacity = 0.25 + Math.sin(now * 0.01) * 0.1 + milkFoamLevel * 0.3;
+      milkSwirl.scale.set(1 + Math.sin(milkSpin) * 0.06, 0.8 + milkFoamLevel, 1 + Math.cos(milkSpin) * 0.06);
+      milkSwirl.position.y = 0.115 + milkFoamLevel * 0.02;
+      // فقاقيع دقيقة بتطلع من طرف اللانس
+      for (let i = 0; i < milkBubbles.length; i++) {
+        const b = milkBubbles[i], u = b.userData;
+        u.t += dt * (1.2 + heat * 1.4);
+        if (u.t > 1) u.t -= 1;
+        b.position.set(Math.cos(u.a + milkSpin * 0.4) * u.r * (0.4 + u.t * 0.6),
+                       0.03 + u.t * 0.09,
+                       Math.sin(u.a + milkSpin * 0.4) * u.r * (0.4 + u.t * 0.6));
+        b.material.opacity = Math.sin(u.t * Math.PI) * 0.75;
+      }
+      // اللبن بيسخن فبيبقى أفتح وأدفى
+      milkMat.color.lerp(new THREE.Color(0xFFFAF0), dt * 0.4);
+      milkJitter = 0.5 + heat * 0.5;
+      // اللي في الكوباية بياخد رغوة كمان
+      drink.state.foam = Math.min(1, drink.state.foam + dt * 0.12 * (wantFoam * 2));
     }
 
     /* ---------- 🧊 الخلاط ---------- */
@@ -409,8 +497,29 @@
       whisk.position.y = 0.075 + Math.abs(Math.sin(whiskPhase)) * 0.004;
       whisk.rotation.z = -Math.sin(whiskPhase) * 0.5 * (0.4 + angle);
       whisk.rotation.x = Math.cos(whiskPhase) * 0.2;
+      // بودرة بتتنثر في أول الخفق
+      const dust = Math.max(0, 1 - k * 4);
+      powderMat.opacity = dust * 0.8;
+      for (let i = 0; i < powder.length; i++) {
+        const d = powder[i], u = d.userData;
+        u.t += dt * 1.4;
+        if (u.t > 1) u.t -= 1;
+        d.position.set(Math.cos(u.a + whiskPhase * 0.2) * u.r, 0.08 + u.t * 0.05 * dust,
+                       Math.sin(u.a + whiskPhase * 0.2) * u.r);
+      }
       // الرغوة بتزيد، واللون بيفتح
       teaFoamLevel = Math.min(1, teaFoamLevel + dt * (0.16 + angle * 0.2));
+      // رغوة ميكروية: الكور بتكبر وتظهر مع الخفق
+      microMat.opacity = Math.min(0.95, teaFoamLevel * 1.3);
+      for (let i = 0; i < microFoam.length; i++) {
+        const f = microFoam[i];
+        const grow = Math.min(1, teaFoamLevel * 1.4 - (i / microFoam.length) * 0.3);
+        f.scale.setScalar(Math.max(0.15, grow));
+        f.position.y = 0.063 + teaFoamLevel * 0.012 + Math.sin(whiskPhase * 0.6 + i) * 0.002;
+      }
+      // تموّج السطح مع حركة المضرب
+      teaLiquid.scale.x = 1 + Math.sin(whiskPhase) * 0.03;
+      teaLiquid.scale.z = 1 + Math.cos(whiskPhase) * 0.03;
       foamMat.opacity = teaFoamLevel * 0.95;
       teaFoam.scale.y = 0.6 + teaFoamLevel * 2.6;
       teaFoam.position.y = 0.061 + teaFoamLevel * 0.008;
@@ -505,6 +614,17 @@
       if (cur !== 'tea') {
         whisk.visible = false;
         teaBubbles.forEach(b => { b.material.opacity = Math.max(0, b.material.opacity - dt * 0.8); });
+        powderMat.opacity = Math.max(0, powderMat.opacity - dt * 1.5);
+        teaLiquid.scale.x += (1 - teaLiquid.scale.x) * Math.min(1, dt * 3);
+        teaLiquid.scale.z += (1 - teaLiquid.scale.z) * Math.min(1, dt * 3);
+      }
+      if (cur !== 'milk') {
+        milkSteam.userData.boost = Math.max(0, milkSteam.userData.boost - dt * 0.8);
+        milkSwirl.material.opacity = Math.max(0, milkSwirl.material.opacity - dt * 0.9);
+        milkBubbles.forEach(b => { b.material.opacity = Math.max(0, b.material.opacity - dt * 1.1); });
+        if (milkJitter > 0) milkJitter = Math.max(0, milkJitter - dt * 1.5);
+      } else if (milkJitter > 0) {
+        milkRig.position.x = milk.obj.position.x + 0.42 + (Math.random() - 0.5) * 0.003 * milkJitter;
       }
       if (cur !== 'brew' && coil) {
         coil.material.emissiveIntensity = Math.max(0.35, coil.material.emissiveIntensity - dt * 0.9);
