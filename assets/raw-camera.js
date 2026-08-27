@@ -124,7 +124,7 @@
       else if (aspect >= 1.0)  cfg = { b: 'mid',   spread: 1.12, drop: 0.1,   fov: 50, maxY: 4.2, pMax: 0.55, pitch: 0.17 };
       else if (aspect >= 0.75) cfg = { b: 'tall',  spread: 1.2,  drop: 0.15,  fov: 54, maxY: 4.8, pMax: 0.62, pitch: 0.26 };
       // موبايل طولي: الكاميرا بتعلى فوق الحيطة وتبص جوه الأوضة زي بيت الدمية
-      else                     cfg = { b: 'phone', spread: 1.12, drop: -0.25, fov: 48, maxY: 9.2, pMax: 0.78, pitch: 0.6 };
+      else                     cfg = { b: 'phone', spread: 1.1,  drop: -0.2,  fov: 48, maxY: 9.2, pMax: 0.8,  pitch: 0.58 };
 
       spread = cfg.spread;
       drop = cfg.drop;

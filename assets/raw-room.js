@@ -82,6 +82,31 @@
       beams.push(beam);
     });
 
+    /* ---------- لافتة المحل فوق الخزائن ----------
+       الفراغ اللي فوق الخزائن كان بايظ الكادر في الشاشات الطولية، فحطينا فيه
+       اسم المكان مرسوم على الحيطة. */
+    const signCv = document.createElement('canvas');
+    signCv.width = 1024; signCv.height = 256;
+    const sg = signCv.getContext('2d');
+    sg.clearRect(0, 0, 1024, 256);
+    sg.fillStyle = '#8A6A3C';
+    sg.font = '800 150px Outfit, Helvetica, Arial, sans-serif';
+    sg.textAlign = 'center'; sg.textBaseline = 'middle';
+    sg.letterSpacing = '26px';
+    sg.fillText('RAW', 512, 96);
+    sg.fillStyle = '#2E5A4B';
+    sg.fillRect(322, 176, 380, 5);
+    sg.font = '600 46px Cairo, Helvetica, Arial, sans-serif';
+    sg.fillStyle = '#7A6A54';
+    sg.letterSpacing = '4px';
+    sg.fillText('كافيه ومحمصة', 512, 216);
+    const signTex = new THREE.CanvasTexture(signCv);
+    signTex.colorSpace = THREE.SRGBColorSpace;
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 1.05),
+      new THREE.MeshBasicMaterial({ map: signTex, transparent: true, depthWrite: false }));
+    sign.position.set(0.1, 3.55, L.wallFaceZ + 0.02);
+    add(sign);
+
     /* ---------- نوافذ على اليمين: ضوء نهار ناعم ---------- */
     [1.4, 4.4].forEach(z => {
       const frame = box(0.1, 2.1, 1.5, M(C.cream, 0.7));
@@ -405,6 +430,7 @@
        وتبص جوه الأوضة — كده الكادر بيمتلي بالمطبخ بدل ما السقف ياخد نصه. */
     function setCeiling(on) {
       ceil.visible = on;
+      sign.position.y = on ? 3.55 : 5.1;      // مع الحيطان الطويلة اللافتة بتعلى
       beams.forEach(b => (b.visible = on));
       // من غير سقف الكاميرا بتعلى، فبنطوّل الحيطان عشان ما يبانش فراغ فوقها
       const k = on ? 1 : 1.75;

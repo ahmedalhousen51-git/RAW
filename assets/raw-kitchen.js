@@ -53,10 +53,13 @@
     RAW.reduceMotion = !!(window.matchMedia &&
       window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
-    // الموبايل بياخد إعدادات أخف من الأول بدل ما يبوظ أول ٤ ثواني
     const coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
-    const renderer = new THREE.WebGLRenderer({ antialias: !coarse, powerPreference: 'high-performance' });
-    renderer.setPixelRatio(Math.min(devicePixelRatio, coarse ? 1.5 : 2));
+    /* الموبايل بيبدأ بدقة كاملة زي الديسكتوب — الشاشة الحديثة كثافتها عالية،
+       ولو نزّلنا الـpixel ratio الصورة بتطلع مغبّشة. التخفيف بيحصل بعدين بس
+       لو الجهاز فعلاً مش لاحق (شوف quality()). */
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    const MAXPR = Math.min(devicePixelRatio || 1, 2);
+    renderer.setPixelRatio(MAXPR);
     renderer.setSize(W, H, false);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -77,10 +80,7 @@
     const fx = RAW.fx(THREE);
     const room = RAW.room(THREE, scene, mats, fx);
     const lights = RAW.lighting(THREE, scene, mats, room.cove);
-    if (coarse) {
-      lights.key.shadow.mapSize.set(1024, 1024);
-      renderer.shadowMap.type = THREE.PCFShadowMap;
-    }
+    if (coarse) lights.key.shadow.mapSize.set(1024, 1024);   // ظل أخف بس نفس النعومة
     lights.setTime(o.time || lights.timeOfDay());       // لون الإضاءة حسب وقت اليوم
     const st = RAW.stations(THREE, scene, mats, fx);
     const stations = st.stations, stationRoots = st.roots;
@@ -316,25 +316,40 @@
       return true;
     }
 
-    /* ---------- جودة متكيّفة ----------
-       بنقيس الأداء أول ٤ ثواني: لو الجهاز مش لاحق ٦٠ إطار، بنخفّف الحمل
-       (بكسل ريشيو، خريطة الظل، والغبار) بدل ما التجربة تفضل متقطّعة. */
-    let qFrames = 0, qTime = 0, qDone = false;
+    /* ---------- الجودة ----------
+       ٣ مستويات: عالية (دقة الشاشة كاملة) · متوسطة · خفيفة. بنبدأ بالعالية،
+       وبنقيس الأداء مرتين: لو مش لاحق ننزل درجة، ولو لسه مش لاحق ننزل تانية.
+       والمستخدم يقدر يختار بنفسه من زرار الجودة. */
+    const QUALITY = {
+      high: { pr: MAXPR,                    shadow: coarse ? 1024 : 2048, dust: coarse ? 0.34 : 0.5, shadows: true },
+      mid:  { pr: Math.min(MAXPR, 1.4),     shadow: 1024,                 dust: 0.25,                shadows: true },
+      low:  { pr: Math.min(MAXPR, 1),       shadow: 512,                  dust: 0,                   shadows: false }
+    };
+    let qLevel = 'high';
+    function applyQuality(name) {
+      const q = QUALITY[name] || QUALITY.high;
+      qLevel = QUALITY[name] ? name : 'high';
+      renderer.setPixelRatio(q.pr);
+      renderer.shadowMap.enabled = q.shadows;
+      lights.key.castShadow = q.shadows;
+      lights.key.shadow.mapSize.set(q.shadow, q.shadow);
+      if (lights.key.shadow.map) { lights.key.shadow.map.dispose(); lights.key.shadow.map = null; }
+      atmos.setDust(q.dust);
+      resize();
+      return qLevel;
+    }
+
+    let qFrames = 0, qTime = 0, qStage = 0;
     function quality(dt) {
-      if (qDone) return;
+      if (qStage > 1) return;
       qFrames++; qTime += dt;
-      if (qTime < 4) return;
-      qDone = true;
+      if (qTime < 3.5) return;
       const fps = qFrames / qTime;
-      if (fps < 45) {
-        renderer.setPixelRatio(1);
-        lights.key.shadow.mapSize.set(1024, 1024);
-        lights.key.shadow.map && lights.key.shadow.map.dispose();
-        lights.key.shadow.map = null;
-        atmos.setDust(0.25);
-        resize();
-        console.info('RAW: خفّفت الجودة — ' + fps.toFixed(0) + ' إطار/ث');
-      }
+      qFrames = 0; qTime = 0;
+      if (fps >= 45) { qStage = 2; return; }         // الجهاز لاحق — سيبها عالية
+      qStage++;
+      applyQuality(qStage === 1 ? 'mid' : 'low');
+      console.info('RAW: الجودة نزلت لـ' + qLevel + ' — ' + fps.toFixed(0) + ' إطار/ث');
     }
 
     /* ---------- الحلقة ---------- */
@@ -498,6 +513,9 @@
       unfocus() { holdWide = true; rig.setFocus(null); return true; },
       /** يرجّع التركيز على المحطة اللي هي عندها */
       refocus() { holdWide = false; rig.setFocus(current); return !!current; },
+      /** الجودة: 'high' · 'mid' · 'low' — بتوقف القياس التلقائي لما تختار بنفسك */
+      setQuality(name) { qStage = 2; return applyQuality(name); },
+      quality() { return qLevel; },
       /** إدخال حركة تدريجي (جويستيك اللمس): كل قيمة من -١ لـ١ */
       move(x, z) {
         touchIn.x = Math.max(-1, Math.min(1, x || 0));
