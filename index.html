@@ -33,7 +33,8 @@
 
   <div class="raw-help">
     <b>الأسهم</b> أو <b>WASD</b> للمشي<br>
-    <b>دوس على الأرض</b> تروح لنقطة<br>
+    <b>اسحب</b> تلفّ الكاميرا ٣٦٠ حواليها<br>
+    <b>عجلة الماوس</b> تقرّب · <b>V</b> ترجّع الزاوية<br>
     <b>دوس على ماكينة</b> تفتح محطتها
   </div>
 
@@ -93,6 +94,7 @@
 <script src="assets/raw-touch.js"></script>
 <script src="assets/raw-drink.js"></script>
 <script src="assets/raw-atmos.js"></script>
+<script src="assets/raw-machinery.js"></script>
 <script src="assets/raw-camera.js"></script>
 <script src="assets/raw-progress.js"></script>
 <script src="assets/raw-consoles.js"></script>
@@ -296,7 +298,11 @@
       if (hud.busy()) return;
       if (hud.isOpen()) { hud.close(); setFocusMode(false); if (api) { api.cupTo(null); api.unfocus(); } }
     },
-    onTick(dt) { hud.tick(dt); paintHands(); },
+    onTick(dt) {
+      hud.tick(dt);
+      paintHands();
+      if (api) api.machineRun(hud.progress());   // الماكينة بتتحرّك في المشهد
+    },
 
     // أحداث الإيدين: نورة بتعلّق، والتقليب بيتحسب في تقييم المشروب
     onHand(kind, info) {

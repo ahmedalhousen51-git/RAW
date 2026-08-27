@@ -506,9 +506,17 @@
       spec = null; station = null;
     }
     function isOpen() { return !!spec; }
+    /** حالة التشغيل الحالية للتأثيرات ثلاثية الأبعاد: { id, k, values } */
+    function progress() {
+      if (!run || !station) return null;
+      const k = run.manual
+        ? Math.min(1, run.shown / ((spec.action.target || 30) * 1.2))
+        : Math.min(1, run.t / run.dur);
+      return { id: station.id, k: k, values: machine(station.id).values };
+    }
     function current() { return station; }
     function busy() { return !!run; }
 
-    return { open, close, isOpen, current, busy, tick, toast, say, state };
+    return { open, close, isOpen, current, busy, tick, toast, say, state, progress };
   };
 })(window);

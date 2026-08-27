@@ -100,6 +100,10 @@
       onAction: (kind, info) => { if (o.onHand) o.onHand(kind, info); }
     });
 
+    // تأثيرات الماكينات وهي شغّالة (خيط الإسبريسو، الدوامة، الرغوة، التلج…)
+    const machines = RAW.machinery(THREE, scene, mats, fx, { stations: stations, drink: drink });
+    let runInfo = null;
+
     const atmos = RAW.atmos(THREE, renderer, scene, mats);
     atmos.tune();                                        // قوة الانعكاس لكل خامة
     if (coarse) atmos.setDust(0.28);
@@ -178,6 +182,7 @@
         else if (e.code === 'KeyR') hands.shakeStart();
         else if (e.code === 'KeyK') hands.stirToggle();
         else if (e.code === 'KeyC') hands.cleanStart();
+        else if (e.code === 'KeyV') rig.reset();          // رجّع زاوية الكاميرا
       }
       if (MOVE_CODES.indexOf(e.code) > -1) e.preventDefault();
     }
@@ -256,7 +261,7 @@
         const cubes = f.gramsFrom ? Math.round(num(f.gramsFrom) / (f.perCube || 17))
                                   : (f.countFrom ? num(f.countFrom) : 6);
         drink.addIce(Math.max(1, cubes));
-        if (RAW.sfx) RAW.sfx.clink();
+        machines.dropCubes(Math.min(6, Math.max(2, Math.round(cubes / 2))));   // مكعبات بتقع من الماكينة
       } else if (f.act === 'heat') {
         drink.state.temp = Math.max(drink.state.temp, temp || 90);
         drink.stir();
@@ -294,6 +299,11 @@
       if (hands.held && hands.held.id === 'cup') return false;   // في إيدها دلوقتي
       const s = id && stations[id];
       if (!s) { drink.moveTo(CUP_HOME.x, CUP_HOME.z, CUP_HOME.y); return false; }
+      // الإسبريسو: الكوباية بتتحط تحت رأس التحضير بالظبط عشان الشوت ينزل فيها
+      if (id === 'espresso') {
+        drink.moveTo(s.obj.position.x, s.obj.position.z + 0.34, RAW.layout.counterY + 0.05);
+        return true;
+      }
       // على الرخام قدّام الماكينة شوية، في ناحية نورة
       const p = s.obj.position;
       const towards = s.at.clone().sub(p).setY(0).normalize().multiplyScalar(0.32);
@@ -376,15 +386,21 @@
       if (!ix && !iz && (touchIn.x || touchIn.z)) { ix = touchIn.x; iz = touchIn.z; }
 
       if (ix || iz) {
-        tmp.set(ix, 0, iz);
-        const mag = Math.min(1, tmp.length());
+        /* الحركة نسبة للكاميرا: "فوق" يعني لقدّام بالنسبة للي انت شايفه،
+           مش دايماً ناحية الحيطة الخلفية — ده اللي بيخلي الدوران ٣٦٠ مريح. */
+        const yaw = rig.yaw();
+        const fwd = -iz, cs = Math.cos(yaw), sn = Math.sin(yaw);
+        const dirX = ix * cs - fwd * sn;
+        const dirZ = -ix * sn - fwd * cs;
+        tmp.set(dirX, 0, dirZ);
+        const mag = Math.min(1, Math.hypot(ix, iz));
         tmp.normalize().multiplyScalar(SPEED * dt * mag);
         want = tmp.length();
         p.x += tmp.x; p.z += tmp.z;
         collide(p);
         goal.set(p.x, 0, p.z);
         pending = null;
-        moving = true; faceX = ix; faceZ = iz;
+        moving = true; faceX = dirX; faceZ = dirZ;
       } else {
         const dx = goal.x - p.x, dz = goal.z - p.z;
         const d = Math.hypot(dx, dz);
@@ -436,6 +452,7 @@
       chef.update(dt, moving, 1);
       fx.update(dt);
       hands.update(dt);
+      machines.tick(dt, now, runInfo);
       drink.update(dt, now);
       atmos.update(dt, now);
 
@@ -513,6 +530,11 @@
       unfocus() { holdWide = true; rig.setFocus(null); return true; },
       /** يرجّع التركيز على المحطة اللي هي عندها */
       refocus() { holdWide = false; rig.setFocus(current); return !!current; },
+      /** حالة تشغيل الماكينة الحالية — بتتبعت من لوحة التحكّم كل فريم */
+      machineRun(info) { runInfo = info || null; },
+      machineState() { return machines.state(); },
+      /** يرجّع الكاميرا لزاويتها الافتراضية */
+      resetView() { return rig.reset(); },
       /** الجودة: 'high' · 'mid' · 'low' — بتوقف القياس التلقائي لما تختار بنفسك */
       setQuality(name) { qStage = 2; return applyQuality(name); },
       quality() { return qLevel; },

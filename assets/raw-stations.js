@@ -33,55 +33,58 @@
       };
       return stations[id];
     }
-    const BACK_VIEW = new THREE.Vector3(1.6, 1.35, 3.6);
+    const BACK_VIEW = new THREE.Vector3(1.15, 1.05, 2.5);
     // المحطات في آخر اليمين بتتصوّر من الناحية التانية، وإلا الكاميرا تطلع بره الجدار
-    const RIGHT_VIEW = new THREE.Vector3(-1.6, 1.35, 3.6);
+    const RIGHT_VIEW = new THREE.Vector3(-1.15, 1.05, 2.5);
     const rightStand = x => new THREE.Vector3(x + 0.62, 0, -5.62);
-    const LEFT_VIEW = new THREE.Vector3(3.7, 1.3, 2.2);
+    const LEFT_VIEW = new THREE.Vector3(2.6, 1.05, 1.6);
 
     /* ---------- ١) ماكينة الإسبريسو ---------- */
     const esp = new THREE.Group();
-    const espBody = box(1.9, 0.56, 0.6, M(C.steel, 0.3, 0.65));
-    espBody.position.y = 0.28; esp.add(espBody);
+    const espBody = box(1.9, 0.52, 0.6, M(C.steel, 0.3, 0.65));
+    espBody.position.y = 0.44; esp.add(espBody);
     const espTop = box(1.94, 0.16, 0.64, M(C.steelDark, 0.35, 0.7));
-    espTop.position.y = 0.64; esp.add(espTop);
+    espTop.position.y = 0.76; esp.add(espTop);
     // صواني الفناجين فوق
     for (let i = -1; i <= 1; i++) {
       const cup = cyl(0.045, 0.036, 0.06, 12, M(C.cream, 0.35));
-      cup.position.set(i * 0.4, 0.75, -0.02); esp.add(cup);
+      cup.position.set(i * 0.4, 0.87, -0.02); esp.add(cup);
     }
     // شريط الشعار — بسيط، اسم المكان بس
     const badge = box(0.92, 0.15, 0.02, M(0x6E2438, 0.45));
-    badge.position.set(-0.4, 0.4, 0.31); esp.add(badge);
+    badge.position.set(-0.4, 0.55, 0.31); esp.add(badge);
     const badgeText = decal('RAW', 0.34, 0.1, { fg: '#F6F0E4', size: 96 });
-    badgeText.position.set(-0.4, 0.4, 0.325); esp.add(badgeText);
+    badgeText.position.set(-0.4, 0.55, 0.325); esp.add(badgeText);
     // شاشة صغيرة
     const espScr = box(0.22, 0.1, 0.02, new THREE.MeshStandardMaterial({
       color: 0x0F2A3A, emissive: 0x1E5C86, emissiveIntensity: 0.7, roughness: 0.3 }));
-    espScr.position.set(0.62, 0.42, 0.31); esp.add(espScr);
+    espScr.position.set(0.62, 0.57, 0.31); esp.add(espScr);
     const espScrTxt = decal('92°C', 0.17, 0.06, { fg: '#BFE6FF', size: 74 });
-    espScrTxt.position.set(0.62, 0.42, 0.325); esp.add(espScrTxt);
+    espScrTxt.position.set(0.62, 0.57, 0.325); esp.add(espScrTxt);
     // رأسين تحضير + مقابض سودة + فناجين تحتهم
+    /* الرؤوس مرفوعة عن الرخام زي الماكينات الحقيقية — لازم يبقى تحتها مساحة
+       للكوباية، وده اللي بيخلّي خيط الشوت وهو نازل باين. */
     [-0.62, 0.0, 0.62].forEach(dx => {
-      const group = box(0.3, 0.2, 0.3, M(C.steelDark, 0.35, 0.7));
-      group.position.set(dx, 0.13, 0.3); esp.add(group);
-      const pf = cyl(0.11, 0.11, 0.07, 16, M(C.steelDark, 0.35, 0.7));
-      pf.position.set(dx, 0.03, 0.34); esp.add(pf);
+      const group = box(0.3, 0.18, 0.3, M(C.steelDark, 0.35, 0.7));
+      group.position.set(dx, 0.31, 0.3); esp.add(group);
+      const pf = cyl(0.11, 0.11, 0.06, 16, M(C.steelDark, 0.35, 0.7));
+      pf.position.set(dx, 0.21, 0.34); esp.add(pf);
       const handle = cyl(0.032, 0.032, 0.22, 10, M(C.black, 0.6));
       handle.rotation.x = Math.PI / 2;
-      handle.position.set(dx, 0.03, 0.5); esp.add(handle);
-      const shot = cyl(0.038, 0.03, 0.06, 12, M(C.cream, 0.32));
-      shot.position.set(dx, -0.02, 0.34); esp.add(shot);
+      handle.position.set(dx, 0.21, 0.5); esp.add(handle);
+      // فوهة الصبّ تحت الفلتر
+      const spout = cyl(0.012, 0.012, 0.04, 8, M(C.steelDark, 0.3, 0.8));
+      spout.position.set(dx, 0.17, 0.34); esp.add(spout);
     });
     // صنية التصريف
     const drip = box(1.2, 0.03, 0.34, M(C.steelDark, 0.4, 0.6));
     drip.position.set(-0.15, 0.005, 0.34); esp.add(drip);
     // لانس البخار على اليمين
     const wand = cyl(0.022, 0.016, 0.34, 10, M(C.steelDark, 0.3, 0.7));
-    wand.position.set(0.82, 0.14, 0.3); wand.rotation.x = 0.3; esp.add(wand);
-    const espPlume = fx.steam(esp, 0.84, 0.3, 0.36, 0.16, 0.55, 7);
+    wand.position.set(0.82, 0.28, 0.3); wand.rotation.x = 0.3; esp.add(wand);
+    const espPlume = fx.steam(esp, 0.84, 0.42, 0.36, 0.16, 0.55, 7);
     const espLamp = fx.indicator(0xE23B2E, 0.07, 0.03, 0.02);
-    espLamp.position.set(0.3, 0.42, 0.315); esp.add(espLamp);
+    espLamp.position.set(0.3, 0.57, 0.315); esp.add(espLamp);
     mk('espresso', 'محطة الإسبريسو', esp, 4.7, L.backCounterZ, backStand(4.7), BACK_VIEW,
        { lamp: espLamp, plume: espPlume });
 
