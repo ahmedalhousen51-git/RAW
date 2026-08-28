@@ -95,6 +95,11 @@
       for (let i = 0; i < spins.length; i++) spins[i].m.rotation.y += dt * spins[i].s;
     }
 
-    return { steam, indicator, flash, bubbleSet, spin, update };
+    /** وضع خفيف: بنخفي نص نفخات البخار — كل نفخة draw call لوحدها */
+    function setLite(on) {
+      steams.forEach(g => g.children.forEach((p, i) => { p.visible = !on || i % 2 === 0; }));
+    }
+
+    return { steam, indicator, flash, bubbleSet, spin, update, setLite };
   };
 })(window);

@@ -57,7 +57,10 @@
     /* الموبايل بيبدأ بدقة كاملة زي الديسكتوب — الشاشة الحديثة كثافتها عالية،
        ولو نزّلنا الـpixel ratio الصورة بتطلع مغبّشة. التخفيف بيحصل بعدين بس
        لو الجهاز فعلاً مش لاحق (شوف quality()). */
-    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true, powerPreference: 'high-performance',
+      precision: coarse ? 'mediump' : 'highp'      // كروت الموبايل أسرع بكتير في mediump
+    });
     const MAXPR = Math.min(devicePixelRatio || 1, 2);
     renderer.setPixelRatio(MAXPR);
     renderer.setSize(W, H, false);
@@ -80,7 +83,10 @@
     const fx = RAW.fx(THREE);
     const room = RAW.room(THREE, scene, mats, fx);
     const lights = RAW.lighting(THREE, scene, mats, room.cove);
-    if (coarse) lights.key.shadow.mapSize.set(1024, 1024);   // ظل أخف بس نفس النعومة
+    if (coarse) {
+      lights.key.shadow.mapSize.set(1024, 1024);
+      renderer.shadowMap.type = THREE.PCFShadowMap;          // أرخص من PCFSoft
+    }
     lights.setTime(o.time || lights.timeOfDay());       // لون الإضاءة حسب وقت اليوم
     const st = RAW.stations(THREE, scene, mats, fx);
     const stations = st.stations, stationRoots = st.roots;
@@ -332,30 +338,68 @@
        وبنقيس الأداء مرتين: لو مش لاحق ننزل درجة، ولو لسه مش لاحق ننزل تانية.
        والمستخدم يقدر يختار بنفسه من زرار الجودة. */
     const QUALITY = {
-      high: { pr: MAXPR,                shadow: coarse ? 1024 : 2048, dust: coarse ? 0.34 : 0.5,
-              shadows: true,  env: !coarse, detail: true },
-      mid:  { pr: Math.min(MAXPR, 1.4), shadow: 1024, dust: 0.2,
-              shadows: true,  env: false,   detail: true },
-      low:  { pr: Math.min(MAXPR, 1),   shadow: 512,  dust: 0,
-              shadows: false, env: false,   detail: false }
+      high: { pr: MAXPR,                 shadow: coarse ? 1024 : 2048, dust: coarse ? 0.3 : 0.5,
+              shadows: true,  env: !coarse, detail: true,  glass: !coarse, lite: coarse },
+      mid:  { pr: Math.min(MAXPR, 1.6),  shadow: 1024, dust: 0.18,
+              shadows: true,  env: false,   detail: !coarse, glass: false, lite: true },
+      low:  { pr: Math.min(MAXPR, 1.15), shadow: 512,  dust: 0,
+              shadows: false, env: false,   detail: false, glass: false,   lite: true }
     };
-    let qLevel = 'high';
+    /* الـtransmission بيخلّي three ترسم المشهد كله مرة زيادة في render target
+       كل فريم. على الموبايل ده وحده بياكل نص الأداء، فبنحوّله لشفافية عادية. */
+    function setGlass(real) {
+      scene.traverse(n => {
+        const list = n.material ? (Array.isArray(n.material) ? n.material : [n.material]) : [];
+        list.forEach(m => {
+          if (m.userData.tr === undefined) {
+            if (!m.transmission) return;
+            m.userData.tr = m.transmission;
+            m.userData.op = m.opacity;
+          }
+          if (real) {
+            m.transmission = m.userData.tr;
+            m.opacity = m.userData.op;
+          } else {
+            // شفافية عادية بدل الانكسار: بنخليها أوضح شوية عشان اللي جوّه يبان
+            m.transmission = 0;
+            m.transparent = true;
+            m.opacity = Math.min(m.userData.op, 0.42);
+            if (m.roughness !== undefined) m.roughness = Math.min(m.roughness, 0.15);
+          }
+          m.needsUpdate = true;
+        });
+      });
+    }
+
+    let qLevel = coarse ? 'mid' : 'high';
+    // أقصى عدد بكسلات نرسمها في الفريم — الشاشات الكبيرة بكثافة عالية بتقتل الموبايل
+    const PIXEL_BUDGET = coarse ? 1400000 : 4200000;
+    function fitPixelRatio(want) {
+      const w = host.clientWidth || 960, h = host.clientHeight || 600;
+      const cap = Math.sqrt(PIXEL_BUDGET / Math.max(1, w * h));
+      return Math.max(1, Math.min(want, cap));
+    }
+
     function applyQuality(name) {
       const q = QUALITY[name] || QUALITY.high;
       qLevel = QUALITY[name] ? name : 'high';
-      renderer.setPixelRatio(q.pr);
+      renderer.setPixelRatio(fitPixelRatio(q.pr));
       renderer.shadowMap.enabled = q.shadows;
       lights.key.castShadow = q.shadows;
       lights.key.shadow.mapSize.set(q.shadow, q.shadow);
       if (lights.key.shadow.map) { lights.key.shadow.map.dispose(); lights.key.shadow.map = null; }
       atmos.setDust(q.dust);
-      atmos.setEnv(q.env);                 // الانعكاسات أغلى حاجة على الموبايل
+      atmos.setEnv(q.env);                 // الانعكاسات ٦ رندرات كل مرة
       room.setDetail(q.detail);
+      setGlass(q.glass);                   // الزجاج الحقيقي = رندر زيادة كل فريم
+      lights.setLite(q.lite);              // أنوار أقل = شيدر أخف
+      fx.setLite(q.lite);
       resize();
       return qLevel;
     }
+    applyQuality(qLevel);                  // الموبايل بيبدأ على المتوسط من أول فريم
 
-    let qFrames = 0, qTime = 0, qStage = 0;
+    let qFrames = 0, qTime = 0, qStage = coarse ? 1 : 0;    // الموبايل بيبدأ من المتوسط
     function quality(dt) {
       if (qStage > 1) return;
       qFrames++; qTime += dt;
@@ -365,6 +409,7 @@
       if (fps >= 45) { qStage = 2; return; }         // الجهاز لاحق — سيبها عالية
       qStage++;
       applyQuality(qStage === 1 ? 'mid' : 'low');
+      if (qStage >= 2) qStage = 2;
       console.info('RAW: الجودة نزلت لـ' + qLevel + ' — ' + fps.toFixed(0) + ' إطار/ث');
     }
 
@@ -490,6 +535,7 @@
     /* ---------- المقاسات ---------- */
     function resize() {
       const w = host.clientWidth || W, h = host.clientHeight || H;
+      renderer.setPixelRatio(fitPixelRatio((QUALITY[qLevel] || QUALITY.high).pr));
       renderer.setSize(w, h, false);
       cam.aspect = w / h;
       cam.fov = rig.fit(cam.aspect);          // الشاشة الطولية بتاخد زاوية أوسع

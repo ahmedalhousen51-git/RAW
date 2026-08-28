@@ -588,8 +588,24 @@
       }
     }
 
+    /* الجسيمات اللي شفافيتها صفر لسه بتترسم — فبنخفيها خالص وهي مش شغّالة.
+       ده بيوفّر ~٦٠ draw call على الموبايل. */
+    function idleHide() {
+      const ice_ = cur === 'ice', tea_ = cur === 'tea', milk_ = cur === 'milk', gr_ = cur === 'grinder';
+      blendBubbles.forEach(b => (b.visible = ice_ || b.material.opacity > 0.02));
+      spray.forEach(sp => (sp.visible = ice_ || sp.material.opacity > 0.02));
+      vortex.visible = ice_ || vortex.material.opacity > 0.02;
+      teaBubbles.forEach(b => (b.visible = tea_ || b.material.opacity > 0.02));
+      powder.forEach(d => (d.visible = tea_ && powderMat.opacity > 0.02));
+      microFoam.forEach(f => (f.visible = teaFoamLevel > 0.04));
+      milkBubbles.forEach(b => (b.visible = milk_ || b.material.opacity > 0.02));
+      grounds.forEach(g => (g.visible = gr_ || groundMat.opacity > 0.02));
+      espSplash.visible = espSplash.material.opacity > 0.02;
+    }
+
     /* ---------- الهدوء بعد الوقفة ---------- */
     function settle(dt, now) {
+      idleHide();
       // اهتزاز الكوباية والبرطمان
       if (espShake > 0) {
         espShake = Math.max(0, espShake - dt * 1.4);

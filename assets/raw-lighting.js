@@ -125,7 +125,26 @@
       return 'night';
     }
 
-    return { key, fill, rim, day, hemi, amb, strip, pendants, overCounter, overRight,
+    /* الوضع الخفيف: كل نور إضافي بيتحسب لكل بكسل في الشيدر، والموبايل بيقع من
+       كتر الأنوار. بنسيب الأساسي بس ونعوّض بالإضاءة العامة. */
+    let lite = false;
+    function setLite(on) {
+      lite = !!on;
+      fill.visible = !lite;
+      day.visible = !lite;
+      strip.forEach((l, i) => (l.visible = !lite || i === 1));
+      pendants.forEach((g, i) => g.children.forEach(c => {
+        if (c.isPointLight) c.visible = !lite || i === 0;
+      }));
+      overRight.visible = !lite;
+      // تعويض بسيط عشان الأوضة ما تبقاش غامقة
+      hemi.intensity = hemi.userData.base || (hemi.userData.base = hemi.intensity);
+      amb.intensity = amb.userData.base || (amb.userData.base = amb.intensity);
+      if (lite) { hemi.intensity *= 1.35; amb.intensity *= 1.5; overCounter.intensity *= 1.25; }
+      return lite;
+    }
+
+    return { key, fill, rim, day, hemi, amb, strip, pendants, overCounter, overRight, setLite,
              setTime, nextTime, timeOfDay, presets: PRESETS,
              get current() { return now; } };
   };
