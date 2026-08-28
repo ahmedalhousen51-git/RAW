@@ -38,7 +38,13 @@
     <b>دوس على ماكينة</b> تفتح محطتها
   </div>
 
-  <div class="raw-rotate">لفّ الموبايل بالعرض عشان تشوف المطبخ كله</div>
+  <div class="raw-rotate" id="rotate">
+    <div class="phone"><i></i></div>
+    <b>لفّ الموبايل بالعرض</b>
+    <span>اللعبة بتشتغل بالعرض عشان تلاقي مساحة تتحرك وتشتغل فيها</span>
+    <button type="button" id="goFull">شغّل بملء الشاشة</button>
+    <small id="rotateNote"></small>
+  </div>
 
   <div class="raw-cup" id="cup" hidden>
     <span id="cupTemp">—</span><i></i><span id="cupFill">—</span><i></i><span id="cupIce">—</span>
@@ -368,6 +374,44 @@
       // التقديم بيتفتح لما يبقى في الكوباية حاجة تستاهل
       $('serveBtn').hidden = !(d.level >= 0.15 && serveCard.count() > 0);
     }, 500);
+
+    /* ---------- الوضع العرضي إجباري على الموبايل ---------- */
+    const isPortrait = () => (window.matchMedia
+      ? window.matchMedia('(orientation: portrait)').matches
+      : innerHeight > innerWidth);
+
+    async function goLandscape() {
+      // القفل الحقيقي مش بيشتغل غير جوه ملء الشاشة، فبنطلب الاتنين ورا بعض
+      try {
+        const el = document.documentElement;
+        if (!document.fullscreenElement) {
+          if (el.requestFullscreen) await el.requestFullscreen();
+          else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+        }
+      } catch (e) {}
+      try {
+        if (screen.orientation && screen.orientation.lock) {
+          await screen.orientation.lock('landscape');
+          $('rotateNote').textContent = '';
+          return true;
+        }
+        throw new Error('no lock');
+      } catch (e) {
+        // سفاري والآيفون مش بيسمحوا بقفل الاتجاه — بنسيبه يلفّه بإيده
+        $('rotateNote').textContent = 'متصفحك مش بيسمح بقفل الاتجاه — لفّ الموبايل بإيدك.';
+        return false;
+      }
+    }
+    $('goFull').addEventListener('click', () => { RAW.sfx.click(); goLandscape(); });
+
+    function checkOrientation() {
+      const block = RAW.isTouch() && isPortrait();
+      document.body.classList.toggle('blocked', block);
+      a.pause(block);                       // المشهد بيقف وهو متغطّي
+    }
+    addEventListener('resize', checkOrientation);
+    addEventListener('orientationchange', () => setTimeout(checkOrientation, 150));
+    checkOrientation();
 
     // جويستيك اللمس: بيتفتح على الموبايل بس
     if (RAW.isTouch()) {

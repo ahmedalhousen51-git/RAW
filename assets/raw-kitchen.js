@@ -369,9 +369,11 @@
     }
 
     /* ---------- الحلقة ---------- */
-    let last = performance.now(), raf = 0, stepTimer = 0;
+    let last = performance.now(), raf = 0, stepTimer = 0, paused = false;
     function tick() {
       raf = requestAnimationFrame(tick);
+      // وقفة كاملة (شاشة "لفّ الموبايل" مثلاً): مفيش حساب ولا رسم
+      if (paused) { last = performance.now(); return; }
       const now = performance.now();
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
@@ -539,6 +541,8 @@
       /** حالة تشغيل الماكينة الحالية — بتتبعت من لوحة التحكّم كل فريم */
       machineRun(info) { runInfo = info || null; },
       machineState() { return machines.state(); },
+      /** وقف/شغّل المشهد (بتستخدمها شاشة "لفّ الموبايل") */
+      pause(on) { paused = !!on; return paused; },
       /** يرجّع الكاميرا لزاويتها الافتراضية */
       resetView() { return rig.reset(); },
       /** الجودة: 'high' · 'mid' · 'low' — بتوقف القياس التلقائي لما تختار بنفسك */
