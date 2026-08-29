@@ -16,26 +16,28 @@
 
 <header class="raw-top">
   <div class="raw-brand"><b>RAW</b><span>كافيه ومحمصة</span></div>
-  <div class="raw-tagline">امشي في المطبخ</div>
+  <div class="raw-top-right">
+    <button type="button" id="cinema" class="raw-eye" title="وضع المشاهدة — إخفاء الواجهة">👁</button>
+    <span class="raw-tagline">امشي في المطبخ</span>
+  </div>
 </header>
 
 <div class="raw-wrap" id="wrap">
   <div id="stage"></div>
 
-  <aside class="raw-stock">
-    <h3><button type="button" id="stockToggle" aria-expanded="true" title="اطوي/افتح">المخزون <span>▾</span></button></h3>
+  <aside class="raw-stock folded">
+    <h3><button type="button" id="stockToggle" aria-expanded="false" title="اطوي/افتح">المخزون <span>▾</span></button></h3>
     <div id="stock"></div>
     <div class="raw-rank" id="rank" title="مستواك وإتقانك">—</div>
+    <button type="button" class="raw-sound" id="resetCam" title="رجّع زاوية الكاميرا">رجّع الكاميرا (V)</button>
     <button type="button" class="raw-sound" id="quality" title="جودة الصورة">الجودة: عالية</button>
     <button type="button" class="raw-sound" id="time" title="غيّر وقت اليوم">الوقت: —</button>
     <button type="button" class="raw-sound" id="sound" aria-pressed="true" title="الصوت شغّال">الصوت: شغّال</button>
   </aside>
 
-  <div class="raw-help">
-    <b>الأسهم</b> أو <b>WASD</b> للمشي<br>
-    <b>اسحب</b> تلفّ الكاميرا ٣٦٠ حواليها<br>
-    <b>عجلة الماوس</b> تقرّب · <b>V</b> ترجّع الزاوية<br>
-    <b>دوس على ماكينة</b> تفتح محطتها
+  <div class="raw-help" id="help">
+    <b>الأسهم</b> أو <b>WASD</b> للمشي · <b>اسحب</b> تلفّ الكاميرا ٣٦٠<br>
+    <b>دوس على ماكينة</b> تفتح محطتها · <b>V</b> ترجّع الزاوية
   </div>
 
   <div class="raw-rotate" id="rotate">
@@ -81,6 +83,8 @@
   </div>
 
   <div class="raw-toasts" id="toasts"></div>
+
+  <button type="button" class="raw-eye-back" id="cinemaBack" title="رجّع الواجهة">👁</button>
 
   <div class="raw-load" id="load"><i></i><span>بجهّز مطبخ RAW…</span></div>
 
@@ -277,19 +281,45 @@
     return true;
   }
 
-  // سحب اللوحة لتحت بيقفلها (إيماءة طبيعية على الموبايل)
+  /* سحب اللوحة: لتحت تقفل، لفوق تصغّر لشريط — وأسرع في الاستجابة */
   (function panelSwipe() {
     const el = els.hud;
-    let y0 = null;
+    let y0 = null, t0 = 0;
     el.addEventListener('pointerdown', e => {
-      if (e.target.closest('input, button')) return;   // مش سحب لو ماسك زرار
-      y0 = e.clientY;
+      if (e.target.closest('input, button')) return;
+      y0 = e.clientY; t0 = performance.now();
     });
-    el.addEventListener('pointerup', e => {
-      if (y0 != null && e.clientY - y0 > 70) closePanel();
+    const end = e => {
+      if (y0 == null) return;
+      const dy = e.clientY - y0, fast = performance.now() - t0 < 400;
+      if (dy > (fast ? 40 : 70)) closePanel();
+      else if (dy < (fast ? -40 : -70)) el.classList.toggle('mini');
       y0 = null;
-    });
+    };
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', () => { y0 = null; });
   })();
+
+  /* ---------- وضع المشاهدة السينمائية: إخفاء الواجهة كلها ---------- */
+  function cinema(on) {
+    document.body.classList.toggle('cinema', on);
+    if (on && hud.isOpen() && !hud.busy()) closePanel();
+    RAW.sfx.click();
+  }
+  $('cinema').addEventListener('click', () => cinema(true));
+  $('cinemaBack').addEventListener('click', () => cinema(false));
+
+  /* رجّع زاوية الكاميرا */
+  $('resetCam').addEventListener('click', () => { if (api) api.resetView(); RAW.sfx.click(); });
+
+  /* التعليمات بتختفي بعد أول تفاعل حقيقي */
+  let helpGone = false;
+  function usedIt() {
+    if (helpGone) return;
+    helpGone = true;
+    document.body.classList.add('seen-help');
+  }
+  ['keydown', 'pointerdown'].forEach(ev => addEventListener(ev, usedIt, { once: true, passive: true }));
 
   window.RAWHud = hud;                     // للتشخيص ولربط صفحات تانية
   window.RAWServe = serveCard;
@@ -440,9 +470,7 @@
     if (RAW.isTouch()) {
       document.body.classList.add('is-touch');
       RAW.touch(wrap, a);
-      // على الموبايل اللوحة بتبدأ مطوية — دوسة على العنوان بتفتحها
-      document.querySelector('.raw-stock').classList.add('folded');
-      $('stockToggle').setAttribute('aria-expanded', 'false');
+      // اللوحة بتبدأ مطوية على كل الشاشات — شوف الـmarkup
     }
 
     paintRank();

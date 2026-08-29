@@ -54,6 +54,16 @@
         '<i class="led busy" title="تشغيل"></i>' +
         '<i class="led warn" title="تحذير"></i>');
       head.appendChild(leds);
+      // تكبير اللوحة لملء الشاشة (مفيد على الموبايل مع المكوّنات)
+      const big = el('button', 'raw-hud-big', '⤢');
+      big.type = 'button';
+      big.title = 'تكبير / تصغير اللوحة';
+      big.addEventListener('click', () => {
+        els.hud.classList.toggle('big');
+        els.hud.classList.remove('mini');
+        press();
+      });
+      head.appendChild(big);
       const x = el('button', 'raw-hud-x', '✕');
       x.type = 'button';
       x.title = 'رجوع للمطبخ';
@@ -465,11 +475,15 @@
     }
 
     /* ---------- نورة والإشعارات ---------- */
+    let sayT = 0;
     function say(line, mood) {
       if (!els.nora) return;
       els.nora.classList.add('on');
       els.noraText.textContent = line;
       els.nora.dataset.mood = mood || 'calm';
+      // بتختفي لوحدها بعد ٥ ثواني، وبترجع مع أي رسالة جديدة
+      clearTimeout(sayT);
+      sayT = setTimeout(() => els.nora.classList.remove('on'), 5000);
     }
     function toast(msg, kind) {
       if (!els.toasts) return;
@@ -508,7 +522,7 @@
       run = null;
       removeEventListener('pointermove', onLiveMove);
       closeTimer = 0;
-      els.hud.classList.remove('on');
+      els.hud.classList.remove('on', 'big', 'mini');
       if (els.nora) els.nora.classList.remove('on');
       if (RAW.mix) RAW.mix.unmount();
       spec = null; station = null;

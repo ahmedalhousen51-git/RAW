@@ -197,7 +197,7 @@
         const push = RAW.reduceMotion ? 1 : 1 - Math.min(0.06, breath * 0.02);
         wantTarget.copy(focus.obj.position).add(new THREE.Vector3(0, -0.34, 0));
         wantPos.copy(focus.obj.position).addScaledVector(focus.view, push);
-        const k = 1 - Math.exp(-3.4 * dt);
+        const k = 1 - Math.exp(-2 * dt);        // دخول أبطأ = إحساس درامي
         cam.position.lerp(wantPos, k);
         target.lerp(wantTarget, k);
         loose = true;                       // لما نخرج من التركيز نبدأ من هنا
