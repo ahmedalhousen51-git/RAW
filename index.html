@@ -103,11 +103,13 @@
 <script src="assets/raw-machinery.js"></script>
 <script src="assets/raw-camera.js"></script>
 <script src="assets/raw-progress.js"></script>
+<script src="assets/raw-ingredients.js"></script>
 <script src="assets/raw-consoles.js"></script>
 <script src="assets/raw-sfx.js"></script>
 <script src="assets/raw-ui.js"></script>
 <script src="assets/raw-console-ui.js"></script>
 <script src="assets/raw-serve.js"></script>
+<script src="assets/raw-mixins.js"></script>
 <script src="assets/raw-kitchen.js"></script>
 <script>
 (function () {
@@ -153,6 +155,20 @@
     $('rank').textContent = p.level.name + ' · إتقان ' + p.mastery() + '٪';
   }
 
+  /* نظام المكوّنات: بيتعرض جوه لوحة الماكينة وبيغذّي التأثيرات ثلاثية الأبعاد */
+  RAW.mix = RAW.mixins({
+    onAdd(machineId, item, list) {
+      if (api) api.showContents(machineId, list);
+      hud.toast('اتحطّت ' + item.n, 'good');
+      const j = RAW.ingredients.judge(list);
+      hud.say(j.note + ' (' + '⭐'.repeat(j.stars) + ')', j.stars >= 4 ? 'happy' : 'calm');
+    },
+    onChange(machineId, list) {
+      if (api) api.showContents(machineId, list);
+    },
+    onError(why) { hud.toast(why, 'bad'); if (api) api.express('oops', 1.2); }
+  });
+
   const hud = RAW.console(els, {
     onRun(station, spec) {
       if (!api) return;
@@ -160,10 +176,17 @@
       if (spec.action.sound && RAW.sfx) RAW.sfx.machine(spec.action.sound);
       api.express('calm', 0.2);
     },
-    onDone(station, spec, values, rating) {
+    onDone(station, spec, values, rating, contents) {
       if (!api) return;
-      api.serve(station.id, spec, values);       // اللي اتعمل بينزل في الكوباية
-      serveCard.add(station.id, rating);         // بتتحسب في درجة المشروب النهائي
+      api.serve(station.id, spec, values, contents);   // المكوّنات بتنزل في الكوباية
+      serveCard.add(station.id, rating);               // بتتحسب في درجة المشروب النهائي
+      if (contents && contents.length) {
+        const rec = RAW.ingredients.matchRecipe(contents);
+        const j = RAW.ingredients.judge(contents);
+        serveCard.add('mix', j.stars >= 4 ? 'great' : (j.stars >= 3 ? 'ok' : 'bad'));
+        if (rec) { hud.toast('⭐ وصفة «' + rec.n + '»', 'good'); serveCard.add('recipe', 'great'); }
+        RAW.mix.clear(station.id);
+      }
       paintRank();
       if (rating === 'bad') { RAW.sfx.error(); api.express('oops', 2); }
       else { RAW.sfx.confirm(); api.express('happy', 2.4); }

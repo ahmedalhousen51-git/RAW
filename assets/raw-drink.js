@@ -207,6 +207,29 @@
       return ice.length;
     }
 
+    /** قطع عايمة: بوبا أو جيلي — بتقعد تحت وبتتحرك مع السائل */
+    const bits = [];
+    function addBits(colour, n, kind) {
+      const mat = new THREE.MeshPhysicalMaterial({
+        color: colour == null ? 0x1E1512 : colour, roughness: 0.35, clearcoat: 0.8,
+        transparent: true, opacity: 0.95
+      });
+      const geo = kind === 'cube'
+        ? new THREE.BoxGeometry(0.016, 0.016, 0.016)
+        : new THREE.SphereGeometry(0.011, 8, 7);
+      for (let i = 0; i < Math.max(1, Math.min(14, n || 6)); i++) {
+        const b = new THREE.Mesh(geo, mat);
+        const a = Math.random() * Math.PI * 2, r = Math.random() * R * 0.6;
+        b.position.set(Math.cos(a) * r, 0.012 + Math.random() * 0.01, Math.sin(a) * r);
+        b.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
+        b.userData = { a: a, r: r, ph: Math.random() * 6 };
+        liquid.add(b);
+        bits.push(b);
+      }
+      st.wobble = Math.min(1, st.wobble + 0.4);
+      return bits.length;
+    }
+
     /** تقليب: بيلف السائل ويعمل تموّج */
     function stir() {
       st.swirl = Math.min(2.6, st.swirl + 1.7);
@@ -229,6 +252,7 @@
       st.swirl = 0;
       st.foam = 0;
       while (ice.length) liquid.remove(ice.pop());
+      while (bits.length) liquid.remove(bits.pop());
       setLevelMeshes();
     }
 
@@ -349,6 +373,15 @@
         c.position.y = Math.max(s * 0.5, surfY - s * 0.45 + bob);
       }
 
+      // القطع العايمة بتترجرج مع التقليب
+      for (let i = 0; i < bits.length; i++) {
+        const b = bits[i], u = b.userData;
+        b.position.x = Math.cos(u.a + st.swirl * now * 0.0004) * u.r;
+        b.position.z = Math.sin(u.a + st.swirl * now * 0.0004) * u.r;
+        b.position.y = 0.012 + Math.abs(Math.sin(now * 0.002 + u.ph)) * 0.004 * (1 + st.wobble * 2);
+        b.rotation.y += dt * (0.4 + st.swirl);
+      }
+
       // الندى: بيظهر لما الكوباية تبرد، وبيختفي لما تسخن
       const cold = Math.max(0, Math.min(1, (16 - st.temp) / 12));
       dewMat.opacity += (cold * 0.75 - dewMat.opacity) * Math.min(1, dt * 0.6);
@@ -357,7 +390,7 @@
 
     return {
       group, state: st, update,
-      pour, drain, addIce, stir, moveTo, placeAt, reset,
+      pour, drain, addIce, addBits, stir, moveTo, placeAt, reset,
       get temp() { return st.temp; },
       get level() { return st.level / MAX; },
       get iceCount() { return ice.length; },

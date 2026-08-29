@@ -294,6 +294,55 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
 .raw-counter .dots i.goal { outline: 1px dashed rgba(232, 201, 154, .5); outline-offset: 2px; }
 .raw-counter .dots i.on { background: #E8C99A; box-shadow: 0 0 8px rgba(232, 201, 154, .5); }
 
+/* ---------- المكوّنات جوه لوحة الماكينة ---------- */
+.raw-mixhost { margin-top: 12px; padding-top: 11px; border-top: 1px solid rgba(255,236,205,.14); }
+.raw-bin { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-bottom: 9px; }
+.raw-bin .lab { font-size: .68rem; opacity: .6; }
+.raw-bin .items { display: flex; gap: 5px; flex-wrap: wrap; flex: 1; }
+.raw-bin .empty { font-style: normal; font-size: .68rem; opacity: .35; }
+.raw-bin .in {
+  display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
+  padding: 4px 8px; border-radius: 999px; font-size: .68rem; font-weight: 700;
+  border: 1px solid rgba(255,236,205,.28); background: rgba(255,255,255,.07); color: #F3EADC;
+}
+.raw-bin .in b { width: 9px; height: 9px; border-radius: 50%; }
+.raw-bin .in em { font-style: normal; opacity: .5; font-size: .62rem; }
+.raw-bin .in:hover { border-color: #F0563F; }
+.raw-bin .clr {
+  padding: 4px 9px; border-radius: 999px; cursor: pointer; font-size: .64rem; font-weight: 700;
+  border: 1px dashed rgba(255,236,205,.28); background: transparent; color: #CFC0AA;
+}
+.raw-cats { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 8px; }
+.raw-cats .cat {
+  padding: 5px 10px; border-radius: 999px; cursor: pointer; font-size: .68rem; font-weight: 700;
+  border: 1px solid rgba(255,236,205,.16); background: rgba(255,255,255,.04); color: #DCD0BC;
+}
+.raw-cats .cat.on { border-color: var(--emerald-kora); background: rgba(20,155,131,.2); color: #BFF0E2; }
+.raw-ing { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; }
+.raw-ing .ing {
+  display: flex; align-items: center; gap: 7px; cursor: grab;
+  padding: 7px 9px; border-radius: 11px; font-size: .7rem; font-weight: 700;
+  border: 1px solid rgba(255,236,205,.16); background: rgba(255,255,255,.05); color: #F3EADC;
+  transition: border-color .15s ease, transform .12s ease, background .15s ease;
+}
+.raw-ing .ing b { width: 12px; height: 12px; border-radius: 50%; flex: none;
+  box-shadow: 0 0 0 1px rgba(0,0,0,.25); }
+.raw-ing .ing:hover { transform: translateY(-1px); border-color: var(--brass); }
+.raw-ing .ing:active { cursor: grabbing; transform: scale(.96); }
+.raw-ing .ing.on { background: rgba(20,155,131,.22); border-color: var(--emerald-kora); }
+.raw-tip {
+  display: block; width: 100%; margin-top: 9px; padding: 8px 10px; cursor: pointer;
+  border-radius: 11px; border: 1px dashed rgba(245, 208, 138, .45);
+  background: rgba(245, 208, 138, .08); color: #F5D08A;
+  font-family: inherit; font-size: .68rem; font-weight: 700; text-align: start; line-height: 1.6;
+}
+.raw-tip:hover { background: rgba(245, 208, 138, .16); }
+.raw-recipe {
+  margin-top: 8px; padding: 7px 10px; border-radius: 10px; text-align: center;
+  background: rgba(74, 222, 128, .16); border: 1px solid rgba(74, 222, 128, .45);
+  color: #C9F7DA; font-size: .7rem; font-weight: 800;
+}
+
 /* زرار التشغيل وشريط التقدّم */
 .raw-run { width: 100%; margin-top: 11px; padding: 11px; cursor: pointer;
   border: none; border-radius: 13px; font-size: .88rem; font-weight: 800; color: #fff;
@@ -633,6 +682,55 @@ body.blocked .raw-rotate { visibility: visible; }
   transition: background .18s ease, box-shadow .18s ease; }
 .raw-counter .dots i.goal { outline: 1px dashed rgba(232, 201, 154, .5); outline-offset: 2px; }
 .raw-counter .dots i.on { background: #E8C99A; box-shadow: 0 0 8px rgba(232, 201, 154, .5); }
+
+/* ---------- المكوّنات جوه لوحة الماكينة ---------- */
+.raw-mixhost { margin-top: 12px; padding-top: 11px; border-top: 1px solid rgba(255,236,205,.14); }
+.raw-bin { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-bottom: 9px; }
+.raw-bin .lab { font-size: .68rem; opacity: .6; }
+.raw-bin .items { display: flex; gap: 5px; flex-wrap: wrap; flex: 1; }
+.raw-bin .empty { font-style: normal; font-size: .68rem; opacity: .35; }
+.raw-bin .in {
+  display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
+  padding: 4px 8px; border-radius: 999px; font-size: .68rem; font-weight: 700;
+  border: 1px solid rgba(255,236,205,.28); background: rgba(255,255,255,.07); color: #F3EADC;
+}
+.raw-bin .in b { width: 9px; height: 9px; border-radius: 50%; }
+.raw-bin .in em { font-style: normal; opacity: .5; font-size: .62rem; }
+.raw-bin .in:hover { border-color: #F0563F; }
+.raw-bin .clr {
+  padding: 4px 9px; border-radius: 999px; cursor: pointer; font-size: .64rem; font-weight: 700;
+  border: 1px dashed rgba(255,236,205,.28); background: transparent; color: #CFC0AA;
+}
+.raw-cats { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 8px; }
+.raw-cats .cat {
+  padding: 5px 10px; border-radius: 999px; cursor: pointer; font-size: .68rem; font-weight: 700;
+  border: 1px solid rgba(255,236,205,.16); background: rgba(255,255,255,.04); color: #DCD0BC;
+}
+.raw-cats .cat.on { border-color: var(--emerald-kora); background: rgba(20,155,131,.2); color: #BFF0E2; }
+.raw-ing { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; }
+.raw-ing .ing {
+  display: flex; align-items: center; gap: 7px; cursor: grab;
+  padding: 7px 9px; border-radius: 11px; font-size: .7rem; font-weight: 700;
+  border: 1px solid rgba(255,236,205,.16); background: rgba(255,255,255,.05); color: #F3EADC;
+  transition: border-color .15s ease, transform .12s ease, background .15s ease;
+}
+.raw-ing .ing b { width: 12px; height: 12px; border-radius: 50%; flex: none;
+  box-shadow: 0 0 0 1px rgba(0,0,0,.25); }
+.raw-ing .ing:hover { transform: translateY(-1px); border-color: var(--brass); }
+.raw-ing .ing:active { cursor: grabbing; transform: scale(.96); }
+.raw-ing .ing.on { background: rgba(20,155,131,.22); border-color: var(--emerald-kora); }
+.raw-tip {
+  display: block; width: 100%; margin-top: 9px; padding: 8px 10px; cursor: pointer;
+  border-radius: 11px; border: 1px dashed rgba(245, 208, 138, .45);
+  background: rgba(245, 208, 138, .08); color: #F5D08A;
+  font-family: inherit; font-size: .68rem; font-weight: 700; text-align: start; line-height: 1.6;
+}
+.raw-tip:hover { background: rgba(245, 208, 138, .16); }
+.raw-recipe {
+  margin-top: 8px; padding: 7px 10px; border-radius: 10px; text-align: center;
+  background: rgba(74, 222, 128, .16); border: 1px solid rgba(74, 222, 128, .45);
+  color: #C9F7DA; font-size: .7rem; font-weight: 800;
+}
 
 /* زرار التشغيل وشريط التقدّم */
 .raw-run { width: 100%; margin-top: 11px; padding: 11px; cursor: pointer;

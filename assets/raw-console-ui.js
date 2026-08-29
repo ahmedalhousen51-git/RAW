@@ -117,6 +117,13 @@
       });
       els.hud.appendChild(ctrls);
 
+      /* المكوّنات: بتتحط جوه اللوحة نفسها فتبان بس اللي الماكينة بتقبله */
+      if (RAW.mix) {
+        const mixHost = el('div', 'raw-mixhost');
+        els.hud.appendChild(mixHost);
+        RAW.mix.mount(mixHost, station.id);
+      }
+
       /* زرار التشغيل + شريط التقدّم */
       const go = el('button', 'raw-run', spec.action.label);
       go.type = 'button';
@@ -319,7 +326,7 @@
         addEventListener('pointermove', onLiveMove);
       }
       say(spec.voice.run, 'calm');
-      if (h.onRun) h.onRun(station, spec, m.values);
+      if (h.onRun) h.onRun(station, spec, m.values, RAW.mix ? RAW.mix.contents(station.id) : []);
       paint();
     }
 
@@ -451,7 +458,7 @@
       // التقدّم بيتسجّل الأول عشان شارة المستوى تبان محدّثة في نفس اللحظة
       let got = [];
       if (RAW.progress) got = RAW.progress.record(station.id, rating);
-      if (h.onDone) h.onDone(station, spec, m.values, rating);
+      if (h.onDone) h.onDone(station, spec, m.values, rating, RAW.mix ? RAW.mix.contents(station.id).slice() : []);
       got.forEach((b, i) => setTimeout(() => toast('🏅 إنجاز: ' + b.name, 'good'), 700 + i * 600));
       paint();
       closeTimer = rating === 'bad' ? 0 : 2.8;      // الرجوع التلقائي بعد نجاح بس
@@ -503,6 +510,7 @@
       closeTimer = 0;
       els.hud.classList.remove('on');
       if (els.nora) els.nora.classList.remove('on');
+      if (RAW.mix) RAW.mix.unmount();
       spec = null; station = null;
     }
     function isOpen() { return !!spec; }

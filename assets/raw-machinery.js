@@ -306,6 +306,44 @@
     const milkSteam = fx.steam(milkRig, 0, 0.2, 0, 0.07, 0.42, 10, 0.022);
     let milkFoamLevel = 0, milkSpin = 0, milkJitter = 0;
 
+    /* ====================== عرض المكوّنات جوه الماكينة ====================== */
+    // قطع بتظهر في برطمان الخلاط، وبتصغّر وتختفي وهو بيخلط
+    const chunks = [];
+    for (let i = 0; i < 6; i++) {
+      const c = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.03),
+        new THREE.MeshStandardMaterial({ color: 0xE0475B, roughness: 0.55 }));
+      c.visible = false;
+      c.userData = { a: Math.random() * 6.28, r: 0.03 + Math.random() * 0.035, ph: Math.random() * 6 };
+      blender.add(c);
+      chunks.push(c);
+    }
+    let chunkLife = 0;
+
+    /** بيتنده لما المكوّنات تتغيّر: بيوري اللي اتحط جوه الماكينة */
+    function setContents(id, ids) {
+      const ING = RAW.ingredients;
+      if (!ING) return;
+      const list = (ids || []).map(x => ING.byId[x]).filter(Boolean);
+      if (id === 'ice') {
+        chunkLife = list.length ? 1 : 0;
+        chunks.forEach((c, i) => {
+          const it = list[i % Math.max(1, list.length)];
+          c.visible = !!list.length && i < Math.max(list.length, 3);
+          if (it) c.material.color.setHex(it.c);
+          c.scale.setScalar(1);
+        });
+        // لون السائل في البرطمان بيقرب من خليط المكوّنات
+        const m = ING.mix(ids || []);
+        if (m) blendMat.color.setHex(m.color);
+      } else if (id === 'tea') {
+        const m = ING.mix(ids || []);
+        if (m) { teaMat.color.setHex(m.color); teaFoamLevel = 0; foamMat.opacity = 0; }
+      } else if (id === 'espresso') {
+        const m = ING.mix(ids || []);
+        if (m) espStream.material.color.setHex(m.color);
+      }
+    }
+
     /* ====================== التشغيل ====================== */
     let cur = null, curK = 0, curVals = null, cool = 0;
 
@@ -479,6 +517,20 @@
       // رذاذ على جوانب البرطمان في السرعات العالية
       const sp = Math.max(0, speed - 0.5) * 1.6;
       spray.forEach(s => { s.material.opacity = sp * (0.4 + Math.random() * 0.3); });
+      // القطع بتتفتفت وتختفي مع الخلط
+      if (chunkLife > 0) {
+        chunkLife = Math.max(0, chunkLife - dt * 0.5 * (0.5 + speed));
+        chunks.forEach(c => {
+          if (!c.visible) return;
+          const u = c.userData;
+          c.scale.setScalar(Math.max(0.05, chunkLife));
+          c.position.set(Math.cos(u.a + blendSpin * 0.12) * u.r * chunkLife,
+                         0.09 + Math.sin(now * 0.004 + u.ph) * 0.015,
+                         Math.sin(u.a + blendSpin * 0.12) * u.r * chunkLife);
+          c.rotation.y += dt * 6 * speed;
+          if (chunkLife <= 0.06) c.visible = false;
+        });
+      }
       // اهتزاز
       blendJitter = speed;
       // لون السائل بيتجانس
@@ -651,7 +703,7 @@
     }
 
     return {
-      tick, dropCubes,
+      tick, dropCubes, setContents,
       /** حالة للتشخيص */
       state() { return { running: cur, k: +curK.toFixed(2), pile: pile }; }
     };

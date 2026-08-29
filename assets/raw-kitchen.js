@@ -245,10 +245,13 @@
 
     /* أثر تشغيل الماكينة على الكوباية — الكميات واللون والحرارة بتيجي من
        القيم اللي المستخدم ظبّطها في لوحة التحكّم. */
-    function serve(stationId, spec, values) {
+    function serve(stationId, spec, values, contents) {
       const f = spec && spec.fx;
       if (!f) return false;
       values = values || {};
+      // المكوّنات اللي المستخدم حطّها في الماكينة بتغلب على اللون الافتراضي
+      const blend = (contents && contents.length && RAW.ingredients)
+        ? RAW.ingredients.mix(contents) : null;
       const num = k => (typeof values[k] === 'number' ? values[k] : 0);
 
       let amount = f.amount != null ? f.amount : num(f.amountFrom) * (f.per || 0.02);
@@ -258,6 +261,12 @@
         const ctl = spec.controls.filter(c => c.k === f.colorFrom)[0];
         const opt = ctl && ctl.options ? ctl.options.filter(o => o.v === values[f.colorFrom])[0] : null;
         if (opt && opt.col != null) color = opt.col;
+      }
+
+      if (blend) {
+        color = blend.color;
+        temp = (temp == null ? 24 : temp) + blend.temp;
+        amount = (amount || 0.1) + contents.length * 0.025;
       }
 
       if (f.act === 'pour') {
@@ -273,8 +282,20 @@
         drink.stir();
       } else if (f.act === 'stir') {
         drink.stir();
-        if (color != null) drink.pour({ amount: 0.01, color: color });
+        if (color != null) drink.pour({ amount: blend ? amount : 0.01, color: color, tempC: temp });
         if (RAW.sfx) RAW.sfx.stir();
+      }
+
+      // أي ماكينة فيها مكوّنات بتصبّ خليطها في الكوباية — مش بس ماكينات الصبّ
+      if (blend && f.act !== 'pour') {
+        drink.pour({ amount: amount, color: blend.color, tempC: temp });
+      }
+
+      // القطع (بوبا/جيلي) والرغوة بتنزل في الكوباية
+      if (blend) {
+        blend.bits.forEach(b => drink.addBits(b.c, b.bits === 'ball' ? 8 : 5, b.bits));
+        if (blend.foam) drink.state.foam = Math.min(1, drink.state.foam + blend.foam);
+        machines.setContents(stationId, []);          // الماكينة اتفرّغت في الكوباية
       }
       return true;
     }
@@ -571,6 +592,8 @@
       },
       /** أثر خطوة على المشروب (بينده من لوحة العمل) */
       serve,
+      /** بيوري المكوّنات جوه الماكينة (قطع في الخلاط، لون في البوّل) */
+      showContents(stationId, ids) { machines.setContents(stationId, ids || []); return true; },
       /** ينقل الكوباية لمحطة، أو يرجّعها للجزيرة لو null */
       cupTo,
       /** حالة المشروب: المستوى والحرارة والتلج */
