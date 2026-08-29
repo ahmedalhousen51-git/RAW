@@ -8,30 +8,31 @@
 
   RAW.lighting = function (THREE, scene, mats, cove) {
     // ضوء عام دافي من فوق وبارد شوية من تحت
-    const hemi = new THREE.HemisphereLight(0xFFF3E2, 0x8A7C68, 0.8);
+    const hemi = new THREE.HemisphereLight(0xFFF3E2, 0x776A58, 0.66);
     scene.add(hemi);
-    const amb = new THREE.AmbientLight(0xFFF6EC, 0.34);
+    const amb = new THREE.AmbientLight(0xFFF6EC, 0.28);
     scene.add(amb);
 
     // Key: دافي وناعم من فوق وقدّام — هو اللي بيرمي الظل
-    const key = new THREE.DirectionalLight(0xFFEFD6, 1.45);
+    const key = new THREE.DirectionalLight(0xFFF0D8, 2.1);
     key.position.set(4.5, 8.5, 7.5);
     key.castShadow = true;
     key.shadow.mapSize.set(2048, 2048);
     key.shadow.camera.left = -13; key.shadow.camera.right = 13;
     key.shadow.camera.top = 13; key.shadow.camera.bottom = -13;
     key.shadow.camera.far = 34;
-    key.shadow.bias = -0.0006;
+    key.shadow.bias = -0.0004;
+    key.shadow.radius = 2.2;
     key.shadow.normalBias = 0.02;
     scene.add(key);
 
     // Fill أضعف من الناحية المقابلة عشان يفتح الظلال
-    const fill = new THREE.DirectionalLight(0xC9DCF2, 0.42);
+    const fill = new THREE.DirectionalLight(0xC9DCF2, 0.62);
     fill.position.set(-8, 5.5, 6);
     scene.add(fill);
 
     // Rim زمردي خفيف من ورا: بيفصل الشخصية عن الخلفية وبيدّي المكان هويته
-    const rim = new THREE.DirectionalLight(0x2FBFA4, 0.5);
+    const rim = new THREE.DirectionalLight(0x2FBFA4, 0.85);
     rim.position.set(-2, 5.5, -9);
     scene.add(rim);
 
@@ -68,6 +69,11 @@
       pendants.push(g);
     });
 
+    // نور واسع ناحية الكاميرا: بيرفع مقدّمة الأوضة من غير ما يمسح الظلال
+    const front = new THREE.PointLight(0xFFE9CE, 7, 15, 1.7);
+    front.position.set(0, 2.35, 6.2);      // واطي عشان ما يعملش بقعة على السقف
+    scene.add(front);
+
     // ضوء خفيف على سطح العمل الخلفي عشان الماكينات تبان
     const overCounter = new THREE.PointLight(0xFFE3B8, 9, 11, 2);
     overCounter.position.set(3.6, 2.5, -5.4);
@@ -81,13 +87,13 @@
        نفس الأوضة بتتغيّر مع اليوم: صبح دافي، ضهر مفتوح، مغرب عسلي، وليل
        بيعتمد على الإضاءة العملية. الألوان والشدّات بس اللي بتتغيّر. */
     const PRESETS = {
-      morning: { name: 'الصبح', key: 0xFFEAD0, keyI: 1.42, hemi: 0.82, amb: 0.32,
+      morning: { name: 'الصبح', key: 0xFFEAD0, keyI: 2.0, hemi: 0.7, amb: 0.28,
                  day: 0xEAF2FF, dayI: 24, warm: 0.85, bg: 0xEBE4D8, shaft: 0.09 },
-      noon:    { name: 'الضهر', key: 0xFFF6E8, keyI: 1.65, hemi: 0.95, amb: 0.38,
+      noon:    { name: 'الضهر', key: 0xFFF6E8, keyI: 2.3, hemi: 0.82, amb: 0.34,
                  day: 0xF2F7FF, dayI: 32, warm: 0.6,  bg: 0xEFE9DE, shaft: 0.05 },
-      sunset:  { name: 'المغرب', key: 0xFFC98C, keyI: 1.05, hemi: 0.6,  amb: 0.26,
+      sunset:  { name: 'المغرب', key: 0xFFC08A, keyI: 1.75, hemi: 0.58, amb: 0.24,
                  day: 0xFFD2A0, dayI: 15, warm: 1.35, bg: 0xE6D6C2, shaft: 0.13 },
-      night:   { name: 'الليل',  key: 0xBFD0F0, keyI: 0.38, hemi: 0.34, amb: 0.18,
+      night:   { name: 'الليل',  key: 0xAFC4EC, keyI: 0.95, hemi: 0.38, amb: 0.2,
                  day: 0x9FB6E0, dayI: 5,  warm: 1.9,  bg: 0xCFC3B2, shaft: 0.03 }
     };
     const ORDER = ['morning', 'noon', 'sunset', 'night'];
@@ -137,6 +143,7 @@
         if (c.isPointLight) c.visible = !lite || i === 0;
       }));
       overRight.visible = !lite;
+      front.intensity = lite ? 9 : 7;
       // تعويض بسيط عشان الأوضة ما تبقاش غامقة
       hemi.intensity = hemi.userData.base || (hemi.userData.base = hemi.intensity);
       amb.intensity = amb.userData.base || (amb.userData.base = amb.intensity);
@@ -144,7 +151,7 @@
       return lite;
     }
 
-    return { key, fill, rim, day, hemi, amb, strip, pendants, overCounter, overRight, setLite,
+    return { key, fill, rim, day, hemi, amb, front, strip, pendants, overCounter, overRight, setLite,
              setTime, nextTime, timeOfDay, presets: PRESETS,
              get current() { return now; } };
   };

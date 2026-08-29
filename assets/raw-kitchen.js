@@ -69,6 +69,7 @@
     // منحنى سينمائي: الستانلس والرخام بيرجعوا بدل ما يتحرقوا أبيض
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.14;
+    renderer.info.autoReset = false;      // بنعدّ الفريم كله (المشهد + مرورات المعالجة)
     renderer.domElement.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none';
     host.appendChild(renderer.domElement);
 
@@ -111,6 +112,8 @@
     let runInfo = null;
 
     const atmos = RAW.atmos(THREE, renderer, scene, mats);
+    // طبقة المعالجة: بلوم + vignette + حبيبات + تباين — دي اللي بتدّي العمق
+    const post = RAW.post ? RAW.post(THREE, renderer, scene, cam) : null;
     atmos.tune();                                        // قوة الانعكاس لكل خامة
     if (coarse) atmos.setDust(0.28);
     atmos.setShaft(lights.presets[lights.current].shaft);
@@ -360,11 +363,11 @@
        والمستخدم يقدر يختار بنفسه من زرار الجودة. */
     const QUALITY = {
       high: { pr: MAXPR,                 shadow: coarse ? 1024 : 2048, dust: coarse ? 0.3 : 0.5,
-              shadows: true,  env: !coarse, detail: true,  glass: !coarse, lite: coarse },
+              shadows: true,  env: !coarse, detail: true,  glass: !coarse, lite: coarse, post: 'high' },
       mid:  { pr: Math.min(MAXPR, 1.6),  shadow: 1024, dust: 0.18,
-              shadows: true,  env: false,   detail: !coarse, glass: false, lite: true },
+              shadows: true,  env: false,   detail: !coarse, glass: false, lite: true, post: 'mid' },
       low:  { pr: Math.min(MAXPR, 1.15), shadow: 512,  dust: 0,
-              shadows: false, env: false,   detail: false, glass: false,   lite: true }
+              shadows: false, env: false,   detail: false, glass: false,   lite: true, post: 'off' }
     };
     /* الـtransmission بيخلّي three ترسم المشهد كله مرة زيادة في render target
        كل فريم. على الموبايل ده وحده بياكل نص الأداء، فبنحوّله لشفافية عادية. */
@@ -415,13 +418,17 @@
       setGlass(q.glass);                   // الزجاج الحقيقي = رندر زيادة كل فريم
       lights.setLite(q.lite);              // أنوار أقل = شيدر أخف
       fx.setLite(q.lite);
+      if (post) post.setLevel(q.post);
       resize();
       return qLevel;
     }
     applyQuality(qLevel);                  // الموبايل بيبدأ على المتوسط من أول فريم
 
+    let fpsN = 0, fpsT = 0, fpsNow = 0;   // عدّاد إطارات مستمر للتشخيص
     let qFrames = 0, qTime = 0, qStage = coarse ? 1 : 0;    // الموبايل بيبدأ من المتوسط
     function quality(dt) {
+      fpsN++; fpsT += dt;
+      if (fpsT >= 1) { fpsNow = Math.round(fpsN / fpsT); fpsN = 0; fpsT = 0; }
       if (qStage > 1) return;
       qFrames++; qTime += dt;
       if (qTime < (qStage === 0 ? 2.2 : 3.5)) return;
@@ -549,7 +556,8 @@
       rig.update(dt, p);
       if (RAW.sfx && RAW.sfx.listener) RAW.sfx.listener(cam);
       if (o.onTick) o.onTick(dt);           // العدّاد بتاع لوحة الماكينة بيمشي مع الفريمات
-      renderer.render(scene, cam);
+      renderer.info.reset();
+      if (post) post.render(dt); else renderer.render(scene, cam);
     }
     tick();
 
@@ -558,6 +566,7 @@
       const w = host.clientWidth || W, h = host.clientHeight || H;
       renderer.setPixelRatio(fitPixelRatio((QUALITY[qLevel] || QUALITY.high).pr));
       renderer.setSize(w, h, false);
+      if (post) post.resize();
       cam.aspect = w / h;
       cam.fov = rig.fit(cam.aspect);          // الشاشة الطولية بتاخد زاوية أوسع
       room.setCeiling(cam.aspect >= 0.75);    // الطولي: من غير سقف عشان الكادر يمتلي
@@ -648,8 +657,9 @@
       /** أرقام الأداء: عدد الـdraw calls والمثلثات والمجسمات */
       stats() {
         const i = renderer.info;
-        return { calls: i.render.calls, triangles: i.render.triangles,
-                 geometries: i.memory.geometries, textures: i.memory.textures };
+        return { fps: fpsNow, calls: i.render.calls, triangles: i.render.triangles,
+                 geometries: i.memory.geometries, textures: i.memory.textures,
+                 quality: qLevel, post: !!(post && post.enabled) };
       },
       /** المحطة اللي هو واقف عندها دلوقتي */
       at() { return current ? current.id : null; },
@@ -675,6 +685,7 @@
         removeEventListener('resize', resize);
         if (ro) ro.disconnect();
         rig.dispose();
+        if (post) post.dispose();
         hands.dispose();
         renderer.domElement.removeEventListener('pointermove', onPointerMove);
         atmos.dispose();

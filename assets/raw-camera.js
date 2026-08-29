@@ -10,7 +10,7 @@
   RAW.cameraRig = function (THREE, cam, dom, onTap) {
     const WIDE = {
       target: new THREE.Vector3(0, 1.5, -2.9),
-      dist: 9.5, yaw: 0, pitch: 0.22
+      dist: 7.6, yaw: 0, pitch: 0.17
     };
     // مفيش حد لليمين والشمال: لفّة كاملة ٣٦٠ حوالين الشخصية
     const LIMIT = { pitchMin: 0.02, pitchMax: 0.95, distMin: 3.2, distMax: 16 };
@@ -162,8 +162,9 @@
     /* بيتنده من الـresize: بيرجّع زاوية الرؤية المناسبة للنسبة الجديدة */
     function fit(aspect) {
       let cfg;
-      if (aspect >= 1.4)       cfg = { b: 'wide',  spread: 1,    drop: 0,     fov: 44, maxY: 3.9, pMax: 0.75, pitch: 0.22 };
-      else if (aspect >= 1.0)  cfg = { b: 'mid',   spread: 1.08, drop: 0.1,   fov: 50, maxY: 4.2, pMax: 0.8,  pitch: 0.26 };
+      // زاوية أوسع ومسافة أقرب = منظور أقوى وإحساس إنك واقف في الأوضة
+      if (aspect >= 1.4)       cfg = { b: 'wide',  spread: 1,    drop: 0,     fov: 54, maxY: 3.9, pMax: 0.75, pitch: 0.17 };
+      else if (aspect >= 1.0)  cfg = { b: 'mid',   spread: 1.1,  drop: 0.1,   fov: 58, maxY: 4.2, pMax: 0.8,  pitch: 0.2 };
       else if (aspect >= 0.75) cfg = { b: 'tall',  spread: 1.15, drop: 0.15,  fov: 54, maxY: 4.8, pMax: 0.85, pitch: 0.32 };
       // موبايل طولي: الكاميرا بتعلى فوق الحيطة وتبص جوه الأوضة زي بيت الدمية
       else                     cfg = { b: 'phone', spread: 1.05, drop: -0.2,  fov: 48, maxY: 9.2, pMax: 0.95, pitch: 0.52 };

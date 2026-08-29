@@ -55,14 +55,12 @@
     rightWall.receiveShadow = true; add(rightWall);
 
     // بلاط subway على الجدار الخلفي — من الأرض لحد 3.05
-    const tilePanel = box(15.9, 3.05, 0.06,
-      new THREE.MeshStandardMaterial({ map: mats.tileTex(14, 7), roughness: 0.42, metalness: 0.03 }));
+    const tilePanel = box(15.9, 3.05, 0.06, mats.tiledMat(14, 7, 0.4));
     tilePanel.position.set(0, 1.525, L.wallFaceZ);
     tilePanel.receiveShadow = true; add(tilePanel);
 
     // وبلاط على الجزء اللي وراه سطح العمل الشمال بس
-    const tileLeft = box(0.06, 3.05, 5.4,
-      new THREE.MeshStandardMaterial({ map: mats.tileTex(5, 7), roughness: 0.42, metalness: 0.03 }));
+    const tileLeft = box(0.06, 3.05, 5.4, mats.tiledMat(5, 7, 0.4));
     tileLeft.position.set(L.wallFaceX, 1.525, -3.8);
     tileLeft.receiveShadow = true; add(tileLeft);
 
@@ -113,7 +111,7 @@
     [1.4, 4.4].forEach(z => {
       const frame = box(0.1, 2.1, 1.5, M(C.cream, 0.7));
       frame.position.set(L.rightFaceX - 0.04, 2.0, z); add(frame);
-      const pane = box(0.04, 1.85, 1.28, new THREE.MeshBasicMaterial({ color: 0xF3F8FF }));
+      const pane = box(0.04, 1.85, 1.28, new THREE.MeshBasicMaterial({ color: 0xDCE8F5 }));
       pane.position.set(L.rightFaceX - 0.11, 2.0, z); add(pane);
       const bar = box(0.05, 1.9, 0.05, M(C.woodDark, 0.8));
       bar.position.set(L.rightFaceX - 0.12, 2.0, z); add(bar);
@@ -122,7 +120,7 @@
     /* ---------- أسطح العمل والخزائن السفلية ---------- */
     function counterRun(x, z, w, d, rot) {
       const g = new THREE.Group();
-      const cab = box(w, 0.88, d, M(C.wood, 0.82));
+      const cab = box(w, 0.88, d, M(C.wood, 0.55));
       cab.position.y = 0.44; cab.castShadow = cab.receiveShadow = true; g.add(cab);
       // فواصل رأسية بسيطة بين الأبواب + مقابض نحاس
       const n = Math.max(1, Math.round(w / 0.9));
@@ -166,7 +164,7 @@
     /* ---------- خزائن علوية زمردية ---------- */
     function upperRun(x, w) {
       const g = new THREE.Group();
-      const body = box(w, 1.0, 0.36, M(C.emerald, 0.62));
+      const body = box(w, 1.0, 0.36, M(C.emerald, 0.42));
       body.castShadow = body.receiveShadow = true; g.add(body);
       const n = Math.max(1, Math.round(w / 0.75));
       for (let i = 0; i <= n; i++) {
@@ -188,7 +186,7 @@
     upperRun(5.4, 4.4);
 
     /* ---------- الرف الخشبي الطويل + الإضاءة المخفية تحته ---------- */
-    const shelfMat = M(C.woodWarm, 0.78);
+    const shelfMat = M(C.woodWarm, 0.58);
     [1.95, 2.55].forEach((y, k) => {
       const sh = box(5.6, 0.07, 0.3, shelfMat);
       sh.position.set(0.1, y, L.wallFaceZ + 0.16);
@@ -308,7 +306,7 @@
     /* ---------- الجزيرة الوسطية ---------- */
     const isl = new THREE.Group();
     const iw = L.island.w, id = L.island.d;
-    const ibase = box(iw, 0.88, id, M(C.woodDark, 0.8));
+    const ibase = box(iw, 0.88, id, M(C.woodDark, 0.52));
     ibase.position.y = 0.44; ibase.castShadow = ibase.receiveShadow = true; isl.add(ibase);
     for (let i = 0; i <= 3; i++) {                        // فواصل واجهة
       const seam = box(0.025, 0.8, 0.02, M(0x3A281C, 0.85));
@@ -367,7 +365,7 @@
     /* ---------- منطقة الطعام ---------- */
     const t = L.table;
     const tableG = new THREE.Group();
-    const ttop = box(t.w, 0.06, t.d, M(C.woodWarm, 0.6));
+    const ttop = box(t.w, 0.06, t.d, M(C.woodWarm, 0.45));
     ttop.position.y = 0.74; ttop.castShadow = ttop.receiveShadow = true; tableG.add(ttop);
     [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(p => {
       const leg = box(0.08, 0.72, 0.08, M(C.woodDark, 0.8));

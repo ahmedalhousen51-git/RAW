@@ -73,8 +73,10 @@
           g.fillStyle = grad; g.fillRect(x, y, 124, 60);
         }
       }
-      tileCache[key] = finish(cv, rx, ry);
-      return tileCache[key];
+      const tex = finish(cv, rx, ry);
+      tex.userData = { canvas: cv };
+      tileCache[key] = tex;
+      return tex;
     }
 
     /* أرضية خشب: ألواح طولية بعروق وتفاوت بسيط في اللون */
@@ -105,6 +107,7 @@
         g.fillRect(i * pw, (i % 2 ? 170 : 330), pw, 2);
       }
       floorTexCache = finish(cv, rx, ry);
+      floorTexCache.userData = { canvas: cv };
       return floorTexCache;
     }
 
@@ -127,7 +130,41 @@
         g.stroke();
       }
       marbleTexCache = finish(cv, 1, 1);
+      marbleTexCache.userData = { canvas: cv };
       return marbleTexCache;
+    }
+
+    /* خريطة نتوءات مشتقّة من نفس الرسمة: بنقيس فرق الإضاءة بين البكسلات
+       (Sobel) ونحوّله لاتجاه سطح. ده اللي بيخلّي فواصل البلاط وعروق الخشب
+       تحس إن ليها عمق حقيقي تحت الضوء بدل ما تبقى صورة مسطّحة. */
+    function normalFrom(cv, strength) {
+      const w = cv.width, h = cv.height;
+      const src = cv.getContext('2d').getImageData(0, 0, w, h).data;
+      const out = document.createElement('canvas');
+      out.width = w; out.height = h;
+      const dst = out.getContext('2d').createImageData(w, h);
+      const lum = (x, y) => {
+        const xx = (x + w) % w, yy = (y + h) % h;
+        const i = (yy * w + xx) * 4;
+        return (src[i] * 0.299 + src[i + 1] * 0.587 + src[i + 2] * 0.114) / 255;
+      };
+      const k = strength == null ? 2.2 : strength;
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const dx = (lum(x - 1, y) - lum(x + 1, y)) * k;
+          const dy = (lum(x, y - 1) - lum(x, y + 1)) * k;
+          const len = Math.sqrt(dx * dx + dy * dy + 1);
+          const i = (y * w + x) * 4;
+          dst.data[i]     = ((dx / len) * 0.5 + 0.5) * 255;
+          dst.data[i + 1] = ((dy / len) * 0.5 + 0.5) * 255;
+          dst.data[i + 2] = ((1 / len) * 0.5 + 0.5) * 255;
+          dst.data[i + 3] = 255;
+        }
+      }
+      out.getContext('2d').putImageData(dst, 0, 0);
+      const t = new THREE.CanvasTexture(out);
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      return t;
     }
 
     /* لوحات الكتابة — بتتحوّل لـdecal مسطّح بيتحجب زي أي mesh */
@@ -152,12 +189,36 @@
     }
 
     /* الرخام كخامة كاملة (نفس النسخة لكل الأسطح) */
-    const marbleMat = new THREE.MeshStandardMaterial({ map: marbleTex(), roughness: 0.42, metalness: 0.04 });
-    const floorMat = new THREE.MeshStandardMaterial({ map: floorTex(9, 8), roughness: 0.8, metalness: 0.02 });
+    const marbleT = marbleTex();
+    const marbleN = normalFrom(marbleT.userData.canvas, 1.1);
+    marbleN.repeat.copy(marbleT.repeat);
+    const marbleMat = new THREE.MeshStandardMaterial({
+      map: marbleT, normalMap: marbleN, normalScale: new THREE.Vector2(0.35, 0.35),
+      roughness: 0.36, metalness: 0.06
+    });
+    const floorT = floorTex(9, 8);
+    const floorN = normalFrom(floorT.userData.canvas, 3.2);
+    floorN.repeat.copy(floorT.repeat);
+    const floorMat = new THREE.MeshStandardMaterial({
+      map: floorT, normalMap: floorN, normalScale: new THREE.Vector2(0.8, 0.8),
+      roughness: 0.72, metalness: 0.04
+    });
     const glassMat = () => new THREE.MeshPhysicalMaterial({
       color: 0xDCE7EA, transmission: 0.6, roughness: 0.14, transparent: true, opacity: 0.55, metalness: 0
     });
 
-    return { C, M, box, cyl, tileTex, floorTex, marbleTex, textTex, decal, marbleMat, floorMat, glassMat, hex };
+    /** خامة بلاط بنتوءات — الفواصل بتحس إنها غايرة فعلاً */
+    function tiledMat(rx, ry, rough) {
+      const t = tileTex(rx, ry);
+      const n = normalFrom(t.userData.canvas, 2.6);
+      n.repeat.copy(t.repeat);
+      return new THREE.MeshStandardMaterial({
+        map: t, normalMap: n, normalScale: new THREE.Vector2(0.75, 0.75),
+        roughness: rough == null ? 0.4 : rough, metalness: 0.04
+      });
+    }
+
+    return { C, M, box, cyl, tileTex, floorTex, marbleTex, textTex, decal, normalFrom,
+             tiledMat, marbleMat, floorMat, glassMat, hex };
   };
 })(window);
