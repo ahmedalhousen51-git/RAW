@@ -14,7 +14,9 @@
   RAW.mixins = function (hooks) {
     const h = hooks || {};
     const bag = {};                    // machineId -> [itemId]
+    // على الموبايل قسم المكوّنات بيبدأ مطوي عشان اللوحة تفضل صغيرة
     let cat = null, current = null, host = null;
+    let shown = !(RAW.isTouch && RAW.isTouch());
     const ING = RAW.ingredients;
 
     const contents = m => (bag[m] || (bag[m] = []));
@@ -66,6 +68,15 @@
 
       host.innerHTML = '';
 
+      // ترويسة القسم مع زرار إخفاء/إظهار
+      const head = el('div', 'raw-mix-head');
+      head.appendChild(el('span', 'ttl', '🧪 المكوّنات'));
+      const tg = el('button', 'raw-mix-toggle', shown ? 'إخفاء ▴' : 'إظهار ▾');
+      tg.type = 'button';
+      tg.addEventListener('click', () => { shown = !shown; render(); if (RAW.sfx) RAW.sfx.click(); });
+      head.appendChild(tg);
+      host.appendChild(head);
+
       // اللي اتحط في الماكينة
       const bin = el('div', 'raw-bin');
       bin.appendChild(el('span', 'lab', 'في الماكينة (' + list.length + '/' + limit(m) + ')'));
@@ -88,10 +99,13 @@
       }
       host.appendChild(bin);
 
-      // تبويبات الفئات
+      if (!shown) return;                 // مطوية: بيفضل بس اللي في الماكينة
+
+      // تبويبات الفئات — مع عدد المتاح في كل فئة
       const tabs = el('div', 'raw-cats');
       cats.forEach(c => {
-        const b = el('button', 'cat' + (c.id === cat ? ' on' : ''), c.icon + ' ' + c.n);
+        const n = items.filter(i => i.cat === c.id).length;
+        const b = el('button', 'cat' + (c.id === cat ? ' on' : ''), c.icon + ' ' + c.n + ' (' + n + ')');
         b.type = 'button';
         b.addEventListener('click', () => { cat = c.id; render(); if (RAW.sfx) RAW.sfx.click(); });
         tabs.appendChild(b);
@@ -102,8 +116,11 @@
       const grid = el('div', 'raw-ing');
       items.filter(i => i.cat === cat).forEach(it => {
         const inBag = list.indexOf(it.id) > -1;
-        const b = el('button', 'ing' + (inBag ? ' on' : ''), '<b style="background:' + hex(it.c) + '"></b>' + it.n);
+        const b = el('button', 'ing' + (inBag ? ' on' : ''),
+          '<b style="background:' + hex(it.c) + '"></b><span class="nm">' + it.n +
+          '</span>' + (it.d ? '<small>' + it.d + '</small>' : ''));
         b.type = 'button';
+        if (it.d) b.title = it.n + ' — ' + it.d;
         b.draggable = true;
         b.dataset.id = it.id;
         b.addEventListener('click', () => {

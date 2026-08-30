@@ -442,8 +442,10 @@
       // الحلقة الخضرا حوالين الأداة اللي في متناول الإيد
       const cand = candidate();
       if (cand !== near) { near = cand; fire('near', near ? { id: near.id, name: near.name } : null); }
-      if (near && !tween) {
+      if (!ringOn) { ring.visible = false; }
+      else if (near && !tween) {
         const w = worldOf(near);
+        ring.visible = true;
         ring.position.set(w.x, Math.max(0.02, w.y - 0.005), w.z);
         ringMat.opacity = 0.42 + Math.sin(performance.now() * 0.005) * 0.16;
       } else {
@@ -483,7 +485,19 @@
       scene.remove(ring);
     }
 
-    return { update, grab, grabId, drop, pourStart, pourStop, shakeStart, shakeStop,
+    /** مكان أداة في العالم (للمهام التلقائية) */
+    function pos(id) {
+      const it = items.filter(x => x.id === id)[0];
+      return it ? worldOf(it) : null;
+    }
+    /** الأداة دي في إيدها دلوقتي؟ */
+    function holding(id) { return !!held && held.id === id; }
+
+    let ringOn = true;
+    /** إخفاء مؤشر التحديد (وضع المشاهدة) */
+    function setRingVisible(v) { ringOn = !!v; ring.visible = ringOn; }
+
+    return { update, grab, grabId, drop, pos, holding, setRingVisible, pourStart, pourStop, shakeStart, shakeStop,
              stirToggle, cleanStart, cleanStop, state, items, dispose,
              get held() { return held; }, get near() { return near; } };
   };

@@ -78,7 +78,7 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
 .raw-stock.folded h3 { margin-bottom: 0; border-bottom: none; padding-bottom: 0; }
 .raw-stock.folded h3 button span { transform: rotate(-90deg); }
 .raw-stock.folded #stock, .raw-stock.folded .raw-rank,
-.raw-stock.folded .raw-sound { display: none; }
+.raw-stock.folded .raw-sound, .raw-stock.folded .raw-closeall { display: none; }
 .raw-stock button {
   display: flex; width: 100%; align-items: center; gap: 9px; margin-bottom: 6px;
   padding: 8px 10px; border-radius: 10px;
@@ -1076,3 +1076,60 @@ body.is-touch .raw-stock { top: auto; }
 
 /* الإشعارات وقت ما اللوحة مفتوحة بتعلى شوية عشان ما تتغطّاش */
 .raw-wrap.paneled .raw-toasts { bottom: auto; top: 58px; }
+
+
+/* ---------- ترويسة قسم المكوّنات ---------- */
+.raw-mix-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.raw-mix-head .ttl { font-size: .72rem; font-weight: 800; opacity: .8; }
+.raw-mix-toggle {
+  padding: 4px 10px; border-radius: 999px; cursor: pointer; font-size: .64rem; font-weight: 700;
+  border: 1px solid rgba(255,236,205,.24); background: rgba(255,255,255,.06); color: #E7DCCB;
+  font-family: inherit;
+}
+.raw-mix-toggle:hover { background: rgba(255,255,255,.16); }
+/* وصف المكوّن تحت اسمه */
+.raw-ing .ing { flex-direction: row; align-items: center; }
+.raw-ing .ing .nm { font-weight: 700; }
+.raw-ing .ing small { display: block; font-size: .58rem; opacity: .55; font-weight: 500; line-height: 1.4; }
+.raw-ing .ing > b { align-self: flex-start; margin-top: 3px; }
+
+/* زرار إغلاق الكل */
+.raw-closeall {
+  width: 100%; margin-top: 4px; padding: 7px; border-radius: 10px; cursor: pointer;
+  border: 1px solid rgba(240, 86, 63, .4); background: rgba(240, 86, 63, .12);
+  color: #B3352F; font-family: inherit; font-size: .68rem; font-weight: 800;
+}
+.raw-closeall:hover { background: rgba(240, 86, 63, .22); }
+
+
+/* ==========================================================================
+   الوضع الداكن — بيتبع إعداد النظام. اللوحات الزجاجية (HUD/الماكينة) داكنة
+   أصلاً، فاللي بيتغيّر هو الأسطح الفاتحة: المخزون، فقاعة نورة، كارت التقديم.
+   ========================================================================== */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --cream: #16130F;
+    --cream-2: #1E1A16;
+    --ink: #EFE6D8;
+    --ink-soft: #A99C89;
+    --line: #3A322A;
+    --shadow: 0 18px 44px rgba(0, 0, 0, .6);
+  }
+  .raw-stock {
+    background: rgba(24, 20, 16, .93);
+    border-color: var(--line);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, .5);
+  }
+  .raw-stock h3 { color: var(--ink); }
+  .raw-stock button {
+    background: #241F1A; color: var(--ink); border-color: var(--line);
+  }
+  .raw-stock button.at { background: #3A2028; border-color: var(--burgundy-2); }
+  .raw-sound { color: var(--ink-soft); }
+  .raw-rank { background: rgba(20, 155, 131, .18); color: #7FD9C2; border-color: rgba(20,155,131,.4); }
+  .raw-nora .bubble { background: rgba(28, 24, 20, .95); color: var(--ink); }
+  .raw-serve .name input { background: rgba(255,255,255,.06); }
+  .raw-load { background: var(--cream-2); }
+  .raw-load span { color: var(--ink-soft); }
+  .raw-fallback p { color: var(--ink-soft); }
+}

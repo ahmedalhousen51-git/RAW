@@ -33,6 +33,7 @@
     <button type="button" class="raw-sound" id="quality" title="جودة الصورة">الجودة: عالية</button>
     <button type="button" class="raw-sound" id="time" title="غيّر وقت اليوم">الوقت: —</button>
     <button type="button" class="raw-sound" id="sound" aria-pressed="true" title="الصوت شغّال">الصوت: شغّال</button>
+    <button type="button" class="raw-closeall" id="closeAll" title="اقفل أي لوحة مفتوحة (Esc)">✕ اقفل الكل</button>
   </aside>
 
   <div class="raw-help" id="help">
@@ -59,6 +60,7 @@
     <button type="button" data-a="stir"><b>🌀</b><span>قلّب</span><kbd>K</kbd></button>
     <button type="button" data-a="shake"><b>🤝</b><span>رجّ</span><kbd>R</kbd></button>
     <button type="button" data-a="clean"><b>🧽</b><span>نضّف</span><kbd>C</kbd></button>
+    <button type="button" data-a="milk"><b>🍶</b><span>صبّ لبن</span><kbd>M</kbd></button>
     <div class="raw-meter" id="actMeter" hidden><i></i><em></em></div>
   </div>
 
@@ -228,6 +230,13 @@
     if (name === 'pour') { down ? H.pourStart() : H.pourStop(); return; }
     if (name === 'shake') { down ? H.shakeStart() : H.shakeStop(); return; }
     if (name === 'clean') { down ? H.cleanStart() : H.cleanStop(); return; }
+    if (name === 'milk') {
+      if (!down) return;
+      const r = api.pourMilk();                       // سيناريو كامل بضغطة
+      if (!r.ok) { hud.toast(r.why, 'warn'); RAW.sfx.error(); }
+      else { hud.say('ثانية واحدة — بجيب الإبريق وأصبّ.', 'calm'); closeAll(); }
+      return;
+    }
   }
   Object.keys(acts).forEach(name => {
     const b = acts[name];
@@ -252,6 +261,7 @@
     acts.stir.disabled = !h || !h.canStir;
     acts.stir.classList.toggle('on', st.stirring);
     acts.clean.disabled = !h || !st.atSink;
+    if (acts.milk) acts.milk.disabled = !!(h && h.id === 'cup') || api.busy();
     acts.pour.classList.toggle('on', st.pouring);
 
     if (st.stirring) {
@@ -271,6 +281,15 @@
     } else {
       meter.hidden = true;
     }
+  }
+
+  /** يقفل أي حاجة مفتوحة: لوحة الماكينة، كارت التقديم، وأي تلميح */
+  function closeAll(except) {
+    let did = false;
+    if (except !== 'serve' && serveCard.isOpen) { serveCard.close(); did = true; }
+    if (except !== 'hud' && closePanel()) did = true;
+    els.nora.classList.remove('on');
+    return did;
   }
 
   /** قفل لوحة الماكينة والرجوع للمطبخ (من غير ما نوقف عملية شغّالة) */
@@ -304,9 +323,20 @@
   /* ---------- وضع المشاهدة السينمائية: إخفاء الواجهة كلها ---------- */
   function cinema(on) {
     document.body.classList.toggle('cinema', on);
-    if (on && hud.isOpen() && !hud.busy()) closePanel();
+    if (on) closeAll();
+    if (api) api.setCinema(on);           // بتخفي مؤشرات التفاعل من المشهد كمان
     RAW.sfx.click();
   }
+  // اختصارات: H يخفي/يرجّع الواجهة · M يصبّ اللبن
+  addEventListener('keydown', e => {
+    if (e.repeat) return;
+    if (e.code === 'KeyH') cinema(!document.body.classList.contains('cinema'));
+    else if (e.code === 'KeyM' && api) {
+      const r = api.pourMilk();
+      if (!r.ok) hud.toast(r.why, 'warn');
+    } else if (e.code === 'Escape' && document.body.classList.contains('cinema')) cinema(false);
+  });
+  $('closeAll').addEventListener('click', () => { closeAll(); RAW.sfx.click(); });
   $('cinema').addEventListener('click', () => cinema(true));
   $('cinemaBack').addEventListener('click', () => cinema(false));
 
@@ -364,6 +394,7 @@
     },
     // الوصول بعد طلب مقصود بيفتح لوحة تحكّم الماكينة
     onArrive(st) {
+      closeAll('hud');            // فتح ماكينة بيقفل اللي كان مفتوح
       hud.open(st);
       setFocusMode(true);
       if (api) api.cupTo(st.id);
@@ -371,15 +402,15 @@
     onInteract(st) {
       if (hud.busy()) return;                    // مش بنقفل والماكينة شغّالة
       if (hud.isOpen()) { hud.close(); setFocusMode(false); if (api) { api.cupTo(null); api.unfocus(); } }
-      else { hud.open(st); setFocusMode(true); if (api) { api.cupTo(st.id); api.refocus(); } }
+      else { closeAll('hud'); hud.open(st); setFocusMode(true); if (api) { api.cupTo(st.id); api.refocus(); } }
     },
     onOperate(st) {
       const spec = RAW.consoles[st.id];
       ui.say(st, (spec && spec.action.busy) || 'شغّالة…');
     },
-    onEscape() { closePanel(); },
-    // دوسة على الأرض بتقفل اللوحة وتمشيها — أسهل حاجة على الموبايل
-    onFloorTap() { closePanel(); },
+    onEscape() { closeAll(); },
+    // دوسة على الأرض بتقفل أي حاجة مفتوحة وتمشيها — أسهل حاجة على الموبايل
+    onFloorTap() { closeAll(); },
     onTick(dt) {
       hud.tick(dt);
       paintHands();

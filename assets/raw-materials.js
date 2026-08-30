@@ -218,7 +218,20 @@
       });
     }
 
+    /** تحرير كل الخامات والتكستشرات المكاشة — بيتنده من destroy() بس */
+    function dispose() {
+      Object.keys(cache).forEach(k => { cache[k] && cache[k].dispose && cache[k].dispose(); delete cache[k]; });
+      Object.keys(tileCache).forEach(k => { tileCache[k] && tileCache[k].dispose(); delete tileCache[k]; });
+      if (floorTexCache) { floorTexCache.dispose(); floorTexCache = null; }
+      if (marbleTexCache) { marbleTexCache.dispose(); marbleTexCache = null; }
+      [marbleMat, floorMat].forEach(m => {
+        if (!m) return;
+        if (m.normalMap) m.normalMap.dispose();
+        m.dispose();
+      });
+    }
+
     return { C, M, box, cyl, tileTex, floorTex, marbleTex, textTex, decal, normalFrom,
-             tiledMat, marbleMat, floorMat, glassMat, hex };
+             tiledMat, marbleMat, floorMat, glassMat, hex, dispose };
   };
 })(window);

@@ -9,12 +9,14 @@
   const RAW = global.RAW = global.RAW || {};
 
   /* الماكينات: ice = الخلاط · espresso · syrup · milk · tea (ماتشا) · brew */
+  /* الترتيب مقصود: الأساس الأول (قهوة/ماتشا/فاكهة)، بعدين السايل، بعدين
+     الحلاوة، وآخر حاجة الإضافات والثلج — زي ترتيب التحضير الحقيقي. */
   const CATS = [
+    { id: 'coffee', n: 'قهوة',    icon: '☕' },
+    { id: 'matcha', n: 'ماتشا',   icon: '🍵' },
     { id: 'fruit',  n: 'فواكه',   icon: '🍓' },
     { id: 'milk',   n: 'حليب',    icon: '🥛' },
     { id: 'syrup',  n: 'سيرب',    icon: '🧴' },
-    { id: 'coffee', n: 'قهوة',    icon: '☕' },
-    { id: 'matcha', n: 'ماتشا',   icon: '🍵' },
     { id: 'addin',  n: 'إضافات',  icon: '🧋' },
     { id: 'ice',    n: 'ثلج',     icon: '🧊' }
   ];
@@ -23,45 +25,45 @@
      at = الماكينات اللي بتقبل المكوّن · bits = قطع بتعوم في المشروب */
   const ITEMS = [
     // 🍓 فواكه — للخلاط
-    { id: 'strawberry', n: 'فراولة', cat: 'fruit', c: 0xD8465C, sweet: 2, body: 2, temp: -2, at: ['ice'] },
-    { id: 'mango',      n: 'مانجو',  cat: 'fruit', c: 0xE9A23B, sweet: 3, body: 3, temp: -2, at: ['ice'] },
-    { id: 'berry',      n: 'توت',    cat: 'fruit', c: 0x7B3E8F, sweet: 2, body: 2, temp: -2, at: ['ice'] },
-    { id: 'banana',     n: 'موز',    cat: 'fruit', c: 0xE7D68A, sweet: 2, body: 4, temp: -1, at: ['ice'] },
-    { id: 'pineapple',  n: 'أناناس', cat: 'fruit', c: 0xE8C64A, sweet: 3, body: 2, temp: -2, at: ['ice'] },
+    { id: 'strawberry', n: 'فراولة', cat: 'fruit', c: 0xD8465C, sweet: 2, body: 2, temp: -2, at: ['ice'] , d: 'حامضة حلوة — أساس مشروب وردي' },
+    { id: 'mango',      n: 'مانجو',  cat: 'fruit', c: 0xE9A23B, sweet: 3, body: 3, temp: -2, at: ['ice'] , d: 'حلاوة استوائية وقوام تقيل' },
+    { id: 'berry',      n: 'توت',    cat: 'fruit', c: 0x7B3E8F, sweet: 2, body: 2, temp: -2, at: ['ice'] , d: 'لون بنفسجي وطعم حاد' },
+    { id: 'banana',     n: 'موز',    cat: 'fruit', c: 0xE7D68A, sweet: 2, body: 4, temp: -1, at: ['ice'] , d: 'بيدّي قوام كريمي' },
+    { id: 'pineapple',  n: 'أناناس', cat: 'fruit', c: 0xE8C64A, sweet: 3, body: 2, temp: -2, at: ['ice'] , d: 'حامض ومنعش' },
 
     // 🥛 حليب — للخلاط والماتشا واللبن
-    { id: 'whole',   n: 'حليب كامل', cat: 'milk', c: 0xF7F0E2, sweet: 1, body: 3, temp: 0,  at: ['ice', 'milk', 'tea'] },
-    { id: 'oat',     n: 'شوفان',     cat: 'milk', c: 0xE9DCC2, sweet: 1, body: 3, temp: 0,  at: ['ice', 'milk', 'tea'] },
-    { id: 'almond',  n: 'لوز',       cat: 'milk', c: 0xEFE2CC, sweet: 1, body: 2, temp: 0,  at: ['ice', 'milk', 'tea'] },
-    { id: 'coconut', n: 'جوز هند',   cat: 'milk', c: 0xF6F3EA, sweet: 2, body: 3, temp: 0,  at: ['ice', 'milk', 'tea'] },
-    { id: 'conden',  n: 'مكثف',      cat: 'milk', c: 0xEED9A8, sweet: 4, body: 4, temp: 0,  at: ['ice', 'milk', 'tea'] },
+    { id: 'whole',   n: 'حليب كامل', cat: 'milk', c: 0xF7F0E2, sweet: 1, body: 3, temp: 0,  at: ['ice', 'milk', 'tea'] , d: 'قوام كريمي وطعم كامل' },
+    { id: 'oat',     n: 'شوفان',     cat: 'milk', c: 0xE9DCC2, sweet: 1, body: 3, temp: 0,  at: ['ice', 'milk', 'tea'] , d: 'حريري ومناسب لكل حاجة' },
+    { id: 'almond',  n: 'لوز',       cat: 'milk', c: 0xEFE2CC, sweet: 1, body: 2, temp: 0,  at: ['ice', 'milk', 'tea'] , d: 'خفيف وطعمه مكسّرات' },
+    { id: 'coconut', n: 'جوز هند',   cat: 'milk', c: 0xF6F3EA, sweet: 2, body: 3, temp: 0,  at: ['ice', 'milk', 'tea'] , d: 'حلو وخفيف — يمشي مع الفاكهة' },
+    { id: 'conden',  n: 'مكثف',      cat: 'milk', c: 0xEED9A8, sweet: 4, body: 4, temp: 0,  at: ['ice', 'milk', 'tea'] , d: 'حلو جداً وتقيل — استعمليه بحساب' },
 
     // 🧴 سيرب — لمحطة السيرب وكل حاجة
-    { id: 'vanilla',  n: 'فانيلا',  cat: 'syrup', c: 0xC9A96B, sweet: 3, body: 1, temp: 0, at: ['syrup', 'ice', 'tea', 'milk'] },
-    { id: 'caramel',  n: 'كراميل',  cat: 'syrup', c: 0x9A5C27, sweet: 4, body: 2, temp: 0, at: ['syrup', 'ice', 'tea', 'milk'] },
-    { id: 'hazel',    n: 'بندق',    cat: 'syrup', c: 0x6E4527, sweet: 3, body: 1, temp: 0, at: ['syrup', 'ice', 'tea', 'milk'] },
-    { id: 'cocosyr',  n: 'جوز هند', cat: 'syrup', c: 0xE4D9C0, sweet: 3, body: 1, temp: 0, at: ['syrup', 'ice', 'tea', 'milk'] },
-    { id: 'lotus',    n: 'لوتس',    cat: 'syrup', c: 0xB2793C, sweet: 4, body: 2, temp: 0, at: ['syrup', 'ice', 'tea', 'milk'] },
+    { id: 'vanilla',  n: 'فانيلا',  cat: 'syrup', c: 0xC9A96B, sweet: 3, body: 1, temp: 0, at: ['syrup', 'ice', 'tea', 'milk'] , d: 'أساسي وبيمشي مع كله' },
+    { id: 'caramel',  n: 'كراميل',  cat: 'syrup', c: 0x9A5C27, sweet: 4, body: 2, temp: 0, at: ['syrup', 'ice', 'tea', 'milk'] , d: 'حلاوة محروقة دافية' },
+    { id: 'hazel',    n: 'بندق',    cat: 'syrup', c: 0x6E4527, sweet: 3, body: 1, temp: 0, at: ['syrup', 'ice', 'tea', 'milk'] , d: 'بندقي دافي مع القهوة' },
+    { id: 'cocosyr',  n: 'جوز هند', cat: 'syrup', c: 0xE4D9C0, sweet: 3, body: 1, temp: 0, at: ['syrup', 'ice', 'tea', 'milk'] , d: 'جوز هند — بيكسر مرارة الماتشا' },
+    { id: 'lotus',    n: 'لوتس',    cat: 'syrup', c: 0xB2793C, sweet: 4, body: 2, temp: 0, at: ['syrup', 'ice', 'tea', 'milk'] , d: 'بسكوت محمّص — حلو وقوي' },
 
     // ☕ قهوة — لماكينة الإسبريسو
-    { id: 'espresso', n: 'إسبريسو',  cat: 'coffee', c: 0x2C1A11, sweet: 0, body: 2, temp: 24, at: ['espresso'] },
-    { id: 'coldbrew', n: 'كولد برو', cat: 'coffee', c: 0x3E2416, sweet: 0, body: 1, temp: -6, at: ['espresso', 'ice'] },
-    { id: 'turkish',  n: 'تركية',    cat: 'coffee', c: 0x241309, sweet: 1, body: 3, temp: 22, at: ['espresso', 'brew'] },
+    { id: 'espresso', n: 'إسبريسو',  cat: 'coffee', c: 0x2C1A11, sweet: 0, body: 2, temp: 24, at: ['espresso'] , d: 'الأساس المركّز' },
+    { id: 'coldbrew', n: 'كولد برو', cat: 'coffee', c: 0x3E2416, sweet: 0, body: 1, temp: -6, at: ['espresso', 'ice'] , d: 'ناعم وبارد وقليل الحموضة' },
+    { id: 'turkish',  n: 'تركية',    cat: 'coffee', c: 0x241309, sweet: 1, body: 3, temp: 22, at: ['espresso', 'brew'] , d: 'تقيلة وقوامها رملي' },
 
     // 🍵 ماتشا
-    { id: 'matchapure', n: 'ماتشا عضوي', cat: 'matcha', c: 0x5E8B2A, sweet: 0, body: 2, temp: 0, at: ['tea'] },
-    { id: 'matchaswt',  n: 'ماتشا حلو',  cat: 'matcha', c: 0x7FA83C, sweet: 3, body: 2, temp: 0, at: ['tea'] },
+    { id: 'matchapure', n: 'ماتشا عضوي', cat: 'matcha', c: 0x5E8B2A, sweet: 0, body: 2, temp: 0, at: ['tea'] , d: 'مرّ ونباتي — الأصلي' },
+    { id: 'matchaswt',  n: 'ماتشا حلو',  cat: 'matcha', c: 0x7FA83C, sweet: 3, body: 2, temp: 0, at: ['tea'] , d: 'ماتشا محلّى جاهز' },
 
     // 🧋 إضافات — بتتحط في الكوباية وبتعوم
-    { id: 'boba',    n: 'بوبا',       cat: 'addin', c: 0x1E1512, sweet: 3, body: 2, temp: 0, at: ['tea', 'ice'], bits: 'ball' },
-    { id: 'jelly',   n: 'جيلي',       cat: 'addin', c: 0xD4A24C, sweet: 2, body: 1, temp: 0, at: ['tea', 'ice'], bits: 'cube' },
-    { id: 'pudding', n: 'بودينغ',     cat: 'addin', c: 0xEFD79A, sweet: 3, body: 3, temp: 0, at: ['tea', 'ice'], bits: 'cube' },
-    { id: 'aloe',    n: 'ألوفيرا',    cat: 'addin', c: 0xC9E6BE, sweet: 1, body: 1, temp: -1, at: ['tea', 'ice'], bits: 'cube' },
-    { id: 'cheese',  n: 'رغوة جبنة',  cat: 'addin', c: 0xFAF0DC, sweet: 2, body: 4, temp: 0, at: ['tea', 'ice'], foam: 0.5 },
+    { id: 'boba',    n: 'بوبا',       cat: 'addin', c: 0x1E1512, sweet: 3, body: 2, temp: 0, at: ['tea', 'ice'], bits: 'ball' , d: 'كور تابيوكا بتتمضغ' },
+    { id: 'jelly',   n: 'جيلي',       cat: 'addin', c: 0xD4A24C, sweet: 2, body: 1, temp: 0, at: ['tea', 'ice'], bits: 'cube' , d: 'مكعبات جيلي حلوة' },
+    { id: 'pudding', n: 'بودينغ',     cat: 'addin', c: 0xEFD79A, sweet: 3, body: 3, temp: 0, at: ['tea', 'ice'], bits: 'cube' , d: 'كريمي بيقعد تحت' },
+    { id: 'aloe',    n: 'ألوفيرا',    cat: 'addin', c: 0xC9E6BE, sweet: 1, body: 1, temp: -1, at: ['tea', 'ice'], bits: 'cube' , d: 'قطع منعشة خفيفة' },
+    { id: 'cheese',  n: 'رغوة جبنة',  cat: 'addin', c: 0xFAF0DC, sweet: 2, body: 4, temp: 0, at: ['tea', 'ice'], foam: 0.5 , d: 'رغوة مالحة حلوة فوق' },
 
     // 🧊 ثلج
-    { id: 'iceCube',  n: 'ثلج عادي',  cat: 'ice', c: 0xEAF6FF, sweet: 0, body: 0, temp: -14, at: ['ice'] },
-    { id: 'iceCrush', n: 'ثلج مجروش', cat: 'ice', c: 0xF2FAFF, sweet: 0, body: 1, temp: -16, at: ['ice'] }
+    { id: 'iceCube',  n: 'ثلج عادي',  cat: 'ice', c: 0xEAF6FF, sweet: 0, body: 0, temp: -14, at: ['ice'] , d: 'مكعبات بتبرّد ببطء' },
+    { id: 'iceCrush', n: 'ثلج مجروش', cat: 'ice', c: 0xF2FAFF, sweet: 0, body: 1, temp: -16, at: ['ice'] , d: 'مجروش — بيبرّد بسرعة ويعمل قوام' }
   ];
 
   const byId = {};
@@ -141,9 +143,16 @@
     { id: 'mangoboba', n: 'مانجو بوبا', need: ['mango', 'coconut', 'boba'], m: 'ice' },
     { id: 'coldbrewtonic', n: 'كولد برو مثلج', need: ['coldbrew', 'iceCube'], m: 'ice' }
   ];
+  /* الوصفة بتتحسب مع كل إضافة/إزالة، فبنكاش النتيجة على مفتاح المكوّنات */
+  let recipeCache = {};
   /** بيرجّع الوصفة اللي المكوّنات طابقتها */
   function matchRecipe(ids) {
-    return RECIPES.filter(r => r.need.every(x => ids.indexOf(x) > -1))[0] || null;
+    const key = ids.slice().sort().join(',');
+    if (key in recipeCache) return recipeCache[key];
+    const hit = RECIPES.filter(r => r.need.every(x => ids.indexOf(x) > -1))[0] || null;
+    if (Object.keys(recipeCache).length > 120) recipeCache = {};
+    recipeCache[key] = hit;
+    return hit;
   }
 
   RAW.ingredients = { CATS, ITEMS, byId, forMachine, mix, judge, suggest, RECIPES, matchRecipe };

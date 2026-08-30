@@ -13,6 +13,7 @@
 
   // مسار السكربت ده نفسه — عشان نلاقي نسخة three المحلية جنب المشروع
   const HERE = (document.currentScript && document.currentScript.src) || location.href;
+  const VERSION = '1.1.0';
   const LOCAL = '../vendor/three.module.min.js';
   const CDN   = 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js';
   let THREE = null, loading = null;
@@ -425,10 +426,14 @@
     applyQuality(qLevel);                  // الموبايل بيبدأ على المتوسط من أول فريم
 
     let fpsN = 0, fpsT = 0, fpsNow = 0;   // عدّاد إطارات مستمر للتشخيص
+    let warmup = 0;                       // أول ثواني التحميل مش بتتحسب
     let qFrames = 0, qTime = 0, qStage = coarse ? 1 : 0;    // الموبايل بيبدأ من المتوسط
     function quality(dt) {
       fpsN++; fpsT += dt;
       if (fpsT >= 1) { fpsNow = Math.round(fpsN / fpsT); fpsN = 0; fpsT = 0; }
+      // أول ٤ ثواني بتتحمّل فيها التكستشرات والشيدرات — القياس فيها مضلّل،
+      // فالجهاز القوي كان ممكن ينزل جودة بالغلط. بنعدّيها من غير حكم.
+      if (warmup < 4) { warmup += dt; qFrames = 0; qTime = 0; return; }
       if (qStage > 1) return;
       qFrames++; qTime += dt;
       if (qTime < (qStage === 0 ? 2.2 : 3.5)) return;
@@ -439,6 +444,59 @@
       applyQuality(qStage === 1 ? 'mid' : 'low');
       if (qStage >= 2) qStage = 2;
       console.info('RAW: الجودة نزلت لـ' + qLevel + ' — ' + fps.toFixed(0) + ' إطار/ث');
+    }
+
+    /* ---------- منفّذ المهام التلقائية ----------
+       سلسلة خطوات، كل خطوة ليها فعل وشرط انتهاء (أو وقت). بتخلّي نورة تعمل
+       سيناريو كامل بضغطة واحدة: تروح للإبريق، تمسكه، تقف جنب الكوباية، تصبّ،
+       وترجّعه مكانه. */
+    let task = null;
+    function runTask(steps, name) {
+      task = { steps: steps, i: 0, t: 0, name: name || '' };
+    }
+    function tickTask(dt) {
+      if (!task) return;
+      const st = task.steps[task.i];
+      if (!st) { task = null; if (o.onTask) o.onTask('done'); return; }
+      if (!st._on) { st._on = true; task.t = 0; if (st.go) st.go(); }
+      task.t += dt;
+      const over = st.until ? st.until() : (task.t >= (st.wait || 0));
+      if (over || task.t > (st.timeout || 9)) {
+        if (!over && st.fail) st.fail();
+        task.i++;
+        task.t = 0;
+      }
+    }
+    function cancelTask() { task = null; }
+
+    const distTo = v => Math.hypot(chef.root.position.x - v.x, chef.root.position.z - v.z);
+
+    /** سيناريو صبّ اللبن كامل بضغطة واحدة */
+    function autoPourMilk() {
+      if (task) return { ok: false, why: 'في حاجة بتحصل دلوقتي' };
+      const jug = hands.pos('jug');
+      if (!jug) return { ok: false, why: 'مفيش إبريق لبن' };
+      if (hands.held && hands.held.id === 'cup') return { ok: false, why: 'سيبي الكوباية الأول' };
+      const cupAt = () => { drink.group.getWorldPosition(tmp); return tmp.clone(); };
+      const home = chef.root.position.clone();
+
+      runTask([
+        // ١) امشي للإبريق
+        { go() { const j = hands.pos('jug'); goal.set(j.x, 0, j.z + 0.75); collide(goal); pending = null; },
+          until: () => distTo(hands.pos('jug')) < 1.5, timeout: 7 },
+        // ٢) امسكيه
+        { go() { if (!hands.holding('jug')) { hands.drop(); hands.grabId('jug'); } }, wait: 0.55 },
+        // ٣) امشي لجنب الكوباية
+        { go() { const c = cupAt(); goal.set(c.x + 0.35, 0, c.z + 0.7); collide(goal); },
+          until: () => distTo(cupAt()) < 1.1, timeout: 8 },
+        // ٤) صبّي
+        { go() { chef.look(cupAt()); hands.pourStart(); }, wait: 2.4 },
+        // ٥) وقّفي الصبّ
+        { go() { hands.pourStop(); }, wait: 0.4 },
+        // ٦) رجّعي الإبريق مكانه وارجعي
+        { go() { hands.drop(); goal.copy(home); }, wait: 0.5 }
+      ], 'milk');
+      return { ok: true };
     }
 
     /* ---------- الحلقة ---------- */
@@ -532,6 +590,7 @@
 
       chef.update(dt, moving, 1);
       fx.update(dt);
+      tickTask(dt);
       hands.update(dt);
       machines.tick(dt, now, runInfo);
       drink.update(dt, now);
@@ -619,6 +678,8 @@
       /** حالة تشغيل الماكينة الحالية — بتتبعت من لوحة التحكّم كل فريم */
       machineRun(info) { runInfo = info || null; },
       machineState() { return machines.state(); },
+      /** وضع المشاهدة: بيخفي مؤشرات التفاعل من المشهد كمان */
+      setCinema(on) { hands.setRingVisible(!on); return true; },
       /** وقف/شغّل المشهد (بتستخدمها شاشة "لفّ الموبايل") */
       pause(on) { paused = !!on; return paused; },
       /** يرجّع الكاميرا لزاويتها الافتراضية */
@@ -633,6 +694,10 @@
       },
       /** واقفة في حاجة دلوقتي؟ */
       isBlocked() { return blocked; },
+      /** سيناريو كامل: تجيب الإبريق، تقف جنب الكوباية، تصبّ، وترجّعه */
+      pourMilk() { return autoPourMilk(); },
+      busy() { return !!task; },
+      cancelTask,
       /** التفاعل اليدوي: مسك، سيب، صبّ، رجّ، تقليب، تنظيف */
       hands: {
         grab: () => hands.grab(),
@@ -657,7 +722,7 @@
       /** أرقام الأداء: عدد الـdraw calls والمثلثات والمجسمات */
       stats() {
         const i = renderer.info;
-        return { fps: fpsNow, calls: i.render.calls, triangles: i.render.triangles,
+        return { version: VERSION, fps: fpsNow, calls: i.render.calls, triangles: i.render.triangles,
                  geometries: i.memory.geometries, textures: i.memory.textures,
                  quality: qLevel, post: !!(post && post.enabled) };
       },
@@ -697,7 +762,11 @@
             else if (m && m.dispose) m.dispose();
           }
         });
+        // الخامات والتكستشرات المشتركة (كاش raw-materials) بتتحرّر هنا بس —
+        // مش عند تغيير المحطة، لأنها متشاركة بين كل حاجة في المشهد.
+        if (mats.dispose) mats.dispose();
         renderer.dispose();
+        renderer.forceContextLoss && renderer.forceContextLoss();
         if (renderer.domElement.parentNode) renderer.domElement.remove();
       }
     };
@@ -715,5 +784,5 @@
     });
   }
 
-  RAW.kitchen = { mount, supported: webglOK };
+  RAW.kitchen = { mount, supported: webglOK, version: VERSION };
 })(window);

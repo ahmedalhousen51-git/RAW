@@ -117,7 +117,7 @@
       depthTest: false, depthWrite: false
     });
 
-    let on = true;
+    let on = true, announced = false;
 
     function pass(mat, target) {
       quad.material = mat;
@@ -126,6 +126,13 @@
     }
 
     function render(dt) {
+      if (on && !announced) {
+        announced = true;                 // أول فريم بعد ما الشيدرات تتجمّع
+        console.info('RAW: post-processing جاهزة');
+        if (window.RAWHud && window.RAWHud.toast) {
+          setTimeout(() => window.RAWHud.toast('✨ التأثيرات السينمائية جاهزة', 'good'), 400);
+        }
+      }
       if (!on) {
         renderer.setRenderTarget(null);
         renderer.render(scene, camera);

@@ -153,6 +153,17 @@
       }
     }
 
+    /* التاب اتخفى؟ نوقف السياق كله — بطارية أقل وصوت مش بيفضل شغّال ورا */
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => {
+        if (!ctx) return;
+        try {
+          if (document.hidden) ctx.suspend();
+          else if (on) ctx.resume();
+        } catch (e) {}
+      });
+    }
+
     return {
       get on() { return on; },
       set on(v) {

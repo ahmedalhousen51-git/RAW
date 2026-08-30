@@ -31,16 +31,29 @@
              byStation: {}, badges: [], sessions: 0, lastSeen: 0 };
   }
 
+  /* التصفّح الخاص أو الذاكرة المليانة بيرموا استثناء — ساعتها بنكمّل في الذاكرة
+     عشان الجلسة الحالية على الأقل تفضل شغّالة. */
+  let memoryBackup = null;
+  let storageOK = true;
+
   function load() {
     try {
       const raw = localStorage.getItem(KEY);
-      if (!raw) return blank();
-      const s = JSON.parse(raw);
-      return Object.assign(blank(), s);
-    } catch (e) { return blank(); }
+      if (!raw) return memoryBackup || blank();
+      return Object.assign(blank(), JSON.parse(raw));
+    } catch (e) {
+      storageOK = false;
+      return memoryBackup || blank();
+    }
   }
   function save(s) {
-    try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) {}
+    memoryBackup = s;
+    if (!storageOK) return;
+    try { localStorage.setItem(KEY, JSON.stringify(s)); }
+    catch (e) {
+      storageOK = false;
+      console.warn('RAW: التخزين المحلي مش متاح — التقدّم هيفضل في الذاكرة بس');
+    }
   }
 
   const stats = load();
@@ -104,6 +117,7 @@
 
   RAW.progress = {
     stats, returning, record, serve, mastery, greeting, badges: BADGES,
+    get persistent() { return storageOK; },
     get level() { return level(); },
     reset() {
       try { localStorage.removeItem(KEY); } catch (e) {}

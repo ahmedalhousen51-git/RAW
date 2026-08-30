@@ -481,19 +481,30 @@
       els.nora.classList.add('on');
       els.noraText.textContent = line;
       els.nora.dataset.mood = mood || 'calm';
-      // بتختفي لوحدها بعد ٥ ثواني، وبترجع مع أي رسالة جديدة
+      // بتختفي بعد ٥ ثواني — بس لو الرسالة لسه هي نفسها (رسالة جديدة بتلغي الإخفاء)
       clearTimeout(sayT);
-      sayT = setTimeout(() => els.nora.classList.remove('on'), 5000);
+      sayT = setTimeout(() => {
+        if (els.noraText.textContent === line) els.nora.classList.remove('on');
+      }, 5000);
     }
+    let lastToast = '', lastToastAt = 0;
     function toast(msg, kind) {
       if (!els.toasts) return;
+      const now = performance.now();
+      // نفس الرسالة مرتين ورا بعض؟ منعرضهاش تاني
+      if (msg === lastToast && now - lastToastAt < 2500) return;
+      lastToast = msg; lastToastAt = now;
+      // الإشعار المهم بيقعد أطول
+      const long = kind === 'bad' || /⭐|إنجاز|اتقدّم|ممتاز/.test(msg);
       const t = el('div', 'raw-toast ' + (kind || ''), msg);
       els.toasts.appendChild(t);
+      // أكتر من تلاتة؟ نشيل الأقدم
+      while (els.toasts.children.length > 3) els.toasts.removeChild(els.toasts.firstChild);
       setTimeout(() => t.classList.add('in'), 10);
       setTimeout(() => {
         t.classList.remove('in');
         setTimeout(() => t.remove(), 350);
-      }, 2600);
+      }, long ? 4200 : 2300);
     }
     // لمسة فيزيائية: اهتزاز خفيف على الموبايل + صوت زرار
     function press() {
