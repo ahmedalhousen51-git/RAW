@@ -477,6 +477,9 @@
     /* ---------- نورة والإشعارات ---------- */
     let sayT = 0;
     function say(line, mood) {
+      // لو المدير موجود، هو صاحب الفقاعة — تنفيذ واحد بدل اتنين
+      const C = RAW.ui && RAW.ui.controller;
+      if (C && C.say) return C.say(line, mood);
       if (!els.nora) return;
       els.nora.classList.add('on');
       els.noraText.textContent = line;
@@ -489,6 +492,8 @@
     }
     let lastToast = '', lastToastAt = 0;
     function toast(msg, kind) {
+      const C = RAW.ui && RAW.ui.controller;
+      if (C && C.toast) return C.toast(msg, kind);
       if (!els.toasts) return;
       const now = performance.now();
       // نفس الرسالة مرتين ورا بعض؟ منعرضهاش تاني

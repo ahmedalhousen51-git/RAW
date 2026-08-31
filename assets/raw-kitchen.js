@@ -13,7 +13,7 @@
 
   // مسار السكربت ده نفسه — عشان نلاقي نسخة three المحلية جنب المشروع
   const HERE = (document.currentScript && document.currentScript.src) || location.href;
-  const VERSION = '1.1.0';
+  const VERSION = '1.1.4';
   const LOCAL = '../vendor/three.module.min.js';
   const CDN   = 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js';
   let THREE = null, loading = null;
@@ -44,6 +44,11 @@
   const REACH = 1.7;            // نطاق التفاعل حوالين نقطة الوقوف
   const BODY  = 0.34;           // نصف قطر الشخصية للاصطدام
   const SPEED = 2.6;            // متر/ثانية
+
+  // الأساس المركزي (اختياري: لو الملفات مش متحمّلة المشروع بيشتغل عادي)
+  const hub = () => (RAW.core && RAW.core.bus);
+  const store = () => (RAW.core && RAW.core.state);
+  const EV = () => (RAW.core && RAW.core.EVENTS) || {};
 
   function build(host, o) {
     o = o || {};
@@ -92,18 +97,19 @@
     lights.setTime(o.time || lights.timeOfDay());       // لون الإضاءة حسب وقت اليوم
     const st = RAW.stations(THREE, scene, mats, fx);
     const stations = st.stations, stationRoots = st.roots;
-    const chef = RAW.character(THREE, scene, mats);
+    const chef = new RAW.entities.Character(THREE, scene, mats);
     chef.root.position.set(START.x, 0, START.z);
 
     // الكوباية بتقف على الجزيرة، وبتتنقل مع نورة لما تفتح محطة
-    const drink = RAW.drink(THREE, scene, mats, fx);
+    const drink = new RAW.entities.Drink(THREE, scene, mats, fx);
     const CUP_HOME = { x: RAW.layout.island.x + 1.15, y: RAW.layout.counterY + 0.05,
                        z: RAW.layout.island.z + 0.35 };
     drink.placeAt(CUP_HOME.x, CUP_HOME.y, CUP_HOME.z);
     drink.onPour = info => { if (RAW.sfx) RAW.sfx.pour(info); };
 
     // الإيدين: مسك الأدوات والصبّ والتقليب — بيتحطّ بعد الكوباية والشخصية
-    const hands = RAW.hands(THREE, scene, mats, fx, {
+    const hands = new RAW.systems.HandsSystem({
+      THREE: THREE, scene: scene, mats: mats, fx: fx,
       chef: chef, drink: drink,
       onAction: (kind, info) => { if (o.onHand) o.onHand(kind, info); }
     });
@@ -120,7 +126,9 @@
     atmos.setShaft(lights.presets[lights.current].shaft);
 
     const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
-    const rig = RAW.cameraRig(THREE, cam, renderer.domElement, onTap);
+    const rig = new RAW.systems.CameraSystem({
+      THREE: THREE, camera: cam, domElement: renderer.domElement, onTap: onTap
+    });
 
     /* نورة بتتابع الماوس: بنرمي شعاع من الكاميرا ونقف عند نفس بُعدها،
        فالنقطة تفضل في مستوى جسمها بدل ما تبص في الأرض. */
@@ -413,6 +421,8 @@
       lights.key.castShadow = q.shadows;
       lights.key.shadow.mapSize.set(q.shadow, q.shadow);
       if (lights.key.shadow.map) { lights.key.shadow.map.dispose(); lights.key.shadow.map = null; }
+      if (store()) store().patch('settings', { quality: qLevel });
+      if (hub()) hub().emit(EV().QUALITY_CHANGE, qLevel);
       atmos.setDust(q.dust);
       atmos.setEnv(q.env);                 // الانعكاسات ٦ رندرات كل مرة
       room.setDetail(q.detail);
@@ -424,6 +434,7 @@
       return qLevel;
     }
     applyQuality(qLevel);                  // الموبايل بيبدأ على المتوسط من أول فريم
+    if (store()) store().patch('settings', { quality: qLevel });
 
     let fpsN = 0, fpsT = 0, fpsNow = 0;   // عدّاد إطارات مستمر للتشخيص
     let warmup = 0;                       // أول ثواني التحميل مش بتتحسب
@@ -600,6 +611,8 @@
       const near = nearestStation();
       if (near !== current) {
         current = near;
+        if (store()) store().set('currentStation', near ? near.id : null);
+        if (hub()) hub().emit(EV().STATION_NEAR, pub(near));
         holdWide = false;                         // خرجت من نطاق المحطة → التركيز يرجع طبيعي
         rig.setFocus(near);                       // اللقطة القريبة بس لما يوصل
         if (o.onStation) o.onStation(pub(near));
@@ -610,6 +623,7 @@
       }
 
       quality(dt);
+      if (hub()) hub().emit(EV().TICK, { dt: dt, now: now });
       const shot = holdWide ? null : current;
       cinematic(dt, shot);
       rig.update(dt, p);
@@ -635,6 +649,9 @@
     const ro = ('ResizeObserver' in window) ? new ResizeObserver(resize) : null;
     if (ro) ro.observe(host);
     addEventListener('resize', resize);
+
+    if (store()) store().set('ready', true);
+    if (hub()) hub().emit(EV().SCENE_READY, { scene: scene, camera: cam, renderer: renderer });
 
     /* ---------- الواجهة البرمجية ---------- */
     return {
@@ -719,6 +736,7 @@
       setTime(id) { const p = lights.setTime(id); recaptureLightBase(); atmos.setShaft(p.shaft); atmos.refresh(); return p.name; },
       nextTime() { const p = lights.nextTime(); recaptureLightBase(); atmos.setShaft(p.shaft); atmos.refresh(); return p.name; },
       timeName() { return lights.presets[lights.current].name; },
+      timeKey() { return lights.current; },
       /** أرقام الأداء: عدد الـdraw calls والمثلثات والمجسمات */
       stats() {
         const i = renderer.info;
@@ -744,6 +762,7 @@
       scene: scene,
       cup: drink.group,
       destroy() {
+        if (hub()) hub().emit(EV().DESTROY, null);
         cancelAnimationFrame(raf);
         removeEventListener('keydown', onKeyDown);
         removeEventListener('keyup', onKeyUp);
@@ -752,6 +771,8 @@
         rig.dispose();
         if (post) post.dispose();
         hands.dispose();
+        chef.dispose();
+        drink.dispose();
         renderer.domElement.removeEventListener('pointermove', onPointerMove);
         atmos.dispose();
         scene.traverse(n => {
