@@ -13,7 +13,7 @@
 
   // مسار السكربت ده نفسه — عشان نلاقي نسخة three المحلية جنب المشروع
   const HERE = (document.currentScript && document.currentScript.src) || location.href;
-  const VERSION = '1.1.4';
+  const VERSION = '1.1.6';
   const LOCAL = '../vendor/three.module.min.js';
   const CDN   = 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js';
   let THREE = null, loading = null;

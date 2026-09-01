@@ -394,6 +394,14 @@
     // نورة بترحّب حسب تاريخك معاها
     uiC.say(RAW.progress.greeting(), 'calm');
 
+    /* التصفّح الخاص أو الذاكرة المليانة: اللعب بيكمّل عادي بس التقدّم مش
+       هيتحفظ — اللاعب لازم يعرف قبل ما يقضّي جلسة كاملة ويلاقيها ضاعت. */
+    if (RAW.core) {
+      RAW.core.bus.on('progress:storage-fail', () => {
+        uiC.toast('التخزين مقفول في المتصفّح — التقدّم مش هيتحفظ بعد ما تقفل', 'warn');
+      });
+    }
+
     /* ---------- الوضع العرضي إجباري على الموبايل ---------- */
     const isPortrait = () => (window.matchMedia
       ? window.matchMedia('(orientation: portrait)').matches

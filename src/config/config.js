@@ -10,7 +10,7 @@
   const core = RAW.core = RAW.core || {};
 
   core.CONFIG = {
-    version: '1.1.4',
+    version: '1.1.6',
 
     /** مستويات الجودة — القيم دي بتتطابق مع QUALITY في raw-kitchen.js */
     quality: {

@@ -36,6 +36,15 @@
   let memoryBackup = null;
   let storageOK = true;
 
+  /* بنبلّغ مرة واحدة بس — الواجهة بتوري إشعار للاعب، والكونسول للمطوّر */
+  let failTold = false;
+  function storageFailed() {
+    if (failTold) return;
+    failTold = true;
+    const bus = RAW.core && RAW.core.bus;
+    if (bus) bus.emit('progress:storage-fail', null);
+  }
+
   function load() {
     try {
       const raw = localStorage.getItem(KEY);
@@ -43,6 +52,7 @@
       return Object.assign(blank(), JSON.parse(raw));
     } catch (e) {
       storageOK = false;
+      // الناقل ممكن يكون لسه مش جاهز وقت التحميل — التبليغ بيتأجّل لأول حفظ
       return memoryBackup || blank();
     }
   }
@@ -53,6 +63,7 @@
     catch (e) {
       storageOK = false;
       console.warn('RAW: التخزين المحلي مش متاح — التقدّم هيفضل في الذاكرة بس');
+      storageFailed();
     }
   }
 

@@ -21,6 +21,8 @@
   const SURFACE_Y = 0.95;        // وش الرخام
   const SHAKE_SECS = 3.4;
   const CLEAN_SECS = 2.2;
+  /* مسافات بنجرّبها قدّام الشخصية لما نص المتر ما يلاقيش سطح */
+  const DROP_PROBES = [0.75, 0.95, 1.15];
 
   class HandsSystem {
     /**
@@ -318,11 +320,20 @@
     drop() {
       if (!this.held) return false;
       const it = this.held;
-      // قدّامها بنص متر، على أقرب سطح
+      /* قدّامها، على أقرب سطح. بنجرّب أكتر من مسافة لأن مكان الوقوف عند
+         المحطة بعيد ٦٢سم عن حرف الرخام — نص متر بس كان بيوقّع الأداة على
+         الأرض قدّام الماكينة بدل ما يحطّها على السطح اللي هي واقفة قدّامه. */
       const p = this._chefPos();
       const fx2 = Math.sin(this.chef.root.rotation.y), fz = Math.cos(this.chef.root.rotation.y);
-      const x = p.x + fx2 * 0.55, z = p.z + fz * 0.55;
-      const y = this._surfaceAt(x, z);
+      let x = p.x + fx2 * 0.55, z = p.z + fz * 0.55, y = this._surfaceAt(x, z);
+      if (y <= 0) {
+        for (let i = 0; i < DROP_PROBES.length; i++) {
+          const r = DROP_PROBES[i];
+          const px = p.x + fx2 * r, pz = p.z + fz * r;
+          const py = this._surfaceAt(px, pz);
+          if (py > 0) { x = px; z = pz; y = py; break; }
+        }
+      }
       this.scene.attach(it.obj);
       this._startTween(it.obj, new this.THREE.Vector3(x, y, z), it.home.q.clone(), 0.28);
       it.held = false;
