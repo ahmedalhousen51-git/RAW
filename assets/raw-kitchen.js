@@ -13,7 +13,7 @@
 
   // مسار السكربت ده نفسه — عشان نلاقي نسخة three المحلية جنب المشروع
   const HERE = (document.currentScript && document.currentScript.src) || location.href;
-  const VERSION = '1.1.6';
+  const VERSION = '1.2.2';
   const LOCAL = '../vendor/three.module.min.js';
   const CDN   = 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js';
   let THREE = null, loading = null;
@@ -115,7 +115,10 @@
     });
 
     // تأثيرات الماكينات وهي شغّالة (خيط الإسبريسو، الدوامة، الرغوة، التلج…)
-    const machines = RAW.machinery(THREE, scene, mats, fx, { stations: stations, drink: drink });
+    const machines = new RAW.systems.MachinerySystem({
+      THREE: THREE, scene: scene, mats: mats, fx: fx,
+      stations: stations, drink: drink
+    });
     let runInfo = null;
 
     const atmos = RAW.atmos(THREE, renderer, scene, mats);
@@ -771,6 +774,7 @@
         rig.dispose();
         if (post) post.dispose();
         hands.dispose();
+        machines.dispose();
         chef.dispose();
         drink.dispose();
         renderer.domElement.removeEventListener('pointermove', onPointerMove);
